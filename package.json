@@ -3,41 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.32.1",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "verify": "node --import ./scripts/register-alias.mjs scripts/verify-conversations.mjs",
-    "diagnose": "node --import ./scripts/register-alias.mjs scripts/diagnose.mjs",
-    "diagnose:chatlist": "node --import ./scripts/register-alias.mjs scripts/diagnose-chatlist.mjs"
-  },
-  "dependencies": {
-    "@tanstack/react-query": "^5.102.8",
-    "@tanstack/react-query-persist-client": "^5.102.8",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "crypto-js": "^4.2.0",
-    "idb-keyval": "^6.3.0",
-    "lucide-react": "^1.45.0",
-    "next": "16.3.4",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "socket.io-client": "^4.8.3",
-    "tailwind-merge": "^3.6.0",
-    "zustand": "^5.0.15"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/crypto-js": "^4.2.2",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "babel-plugin-react-compiler": "1.0.0",
-    "eslint": "^9",
-    "eslint-config-next": "16.3.4",
-    "tailwindcss": "^4",
-    "typescript": "^5"
-  },
-  "packageManager": "pnpm@10.32.1"
+    "dev": "pnpm dev:web",
+    "dev:web": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/web dev",
+    "dev:tui": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/tui dev",
+    "build": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/web build && pnpm --filter @bubbles/tui build",
+    "start": "pnpm --filter @bubbles/web start",
+    "tui": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/tui start",
+    "lint": "pnpm --filter @bubbles/shared lint && pnpm --filter @bubbles/web lint && pnpm --filter @bubbles/tui lint",
+    "verify": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/web verify",
+    "diagnose": "pnpm --filter @bubbles/web diagnose",
+    "diagnose:chatlist": "pnpm --filter @bubbles/web diagnose:chatlist"
+  }
 }

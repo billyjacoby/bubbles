@@ -1,6 +1,8 @@
 # Bubbles
 
-A web client for a [BlueBubbles](https://bluebubbles.app) server, built with Next.js.
+Web and terminal clients for a [BlueBubbles](https://bluebubbles.app) server.
+The Next.js PWA and Ink TUI share one typed protocol/domain package, so fixes to
+message parsing, contacts, sending, and realtime events apply to both clients.
 
 The goal is a deliberately small surface: a handful of typed modules that map
 directly onto the BlueBubbles REST API and socket.io feed, so features are easy
@@ -10,7 +12,7 @@ to add without unpicking layers of abstraction.
 
 ```bash
 pnpm install
-pnpm dev
+pnpm dev:web
 ```
 
 Open the app, and you will be sent to `/setup`. Enter your BlueBubbles server
@@ -26,44 +28,60 @@ socket.io connection both go straight from the client. Authentication is a
 This means the server must allow cross-origin requests from wherever this app is
 hosted. If that turns out to be a problem, the fix is to proxy through Next.js
 route handlers: every outbound call already funnels through
-`src/lib/api/client.ts`, so only that module and the socket connection need to
+`packages/shared/src/api/client.ts`, so only that module and the socket connection need to
 change.
 
 The password is stored in an httpOnly cookie and read by a server component
-(`src/app/chats/layout.tsx`), which hands it to the client via
+(`app/web/src/app/chats/layout.tsx`), which hands it to the client via
 `ConnectionProvider`. It never touches `localStorage`. Because the browser calls
 the server directly, the password does exist in client memory — that is inherent
 to this transport choice, not an oversight.
 
+## Terminal client
+
+Run the TUI with connection details in flags:
+
+```bash
+pnpm tui -- --server https://bluebubbles.example.com --password 'secret'
+```
+
+Or keep credentials out of shell history by using environment variables:
+
+```bash
+export BLUEBUBBLES_URL=https://bluebubbles.example.com
+export BLUEBUBBLES_PASSWORD='secret'
+pnpm tui
+```
+
+Use `j`/`k` or the arrow keys to select a chat, `Enter`, `i`, or `Tab` to
+compose, `Escape` to return to navigation, `r` to refresh, and `q` to quit.
+Incoming messages update over Socket.IO. Outgoing iMessages render blue and SMS
+messages green, matching the web client.
+
 ## Layout
 
 ```
-src/
-  app/
+app/
+  web/
+    src/app/
     api/session/route.ts    Validate credentials, set/clear the session cookie
     setup/                  Connection form
     chats/                  Authenticated shell, chat list, thread routes
-  lib/
+    src/lib/                Browser cache, session, and UI utilities
+    src/hooks/              Query, mutation, realtime and delta-sync hooks
+    src/components/         Web UI
+    src/store/              Browser UI and preference state
+  tui/
+    src/                    Ink terminal UI and CLI
+packages/
+  shared/src/
+    api/                    BlueBubbles REST boundary
     types.ts                Server data models
-    api/client.ts           Request plumbing, auth, error normalisation
-    api/chats.ts            Chat + conversation endpoints
-    api/messages.ts         Send, react, edit, unsend
-    api/contacts.ts         Address book
+    socket.ts               Socket.IO connection and payload decoding
     contacts.ts             Address -> contact matching
-    avatar-loader.ts        Batched on-demand contact photos
-    socket.ts               socket.io connection and payload decoding
-    cache.ts                Query-cache writes shared by sends and socket events
-    persister.ts            IndexedDB persistence of the query cache
-    sync.ts                 Incremental-sync watermark logic
-    conversations.ts        Deriving the ordered chat list from the message feed
-    message-utils.ts        Deriving display text, titles, message predicates
-    thread.ts               Grouping messages into renderable thread items
-  hooks/                    Query, mutation, realtime and delta-sync hooks
-  components/               UI
-  store/
-    ui-store.ts             Socket status, typing, unread, sidebar state
-    pin-store.ts            Pinned conversations (localStorage, max 9)
-    theme-store.ts          Theme selection and browser persistence
+    conversations.ts        Ordered conversation derivation
+    message-utils.ts        Display text, titles, message predicates
+    thread.ts               Renderable thread grouping
 ```
 
 ## Themes
@@ -75,18 +93,18 @@ monospace treatment; the other themes retain the standard interface typography.
 
 ## Installing as a PWA
 
-The app ships a web manifest (`src/app/manifest.ts`), icons, and a service
+The app ships a web manifest (`app/web/src/app/manifest.ts`), icons, and a service
 worker, so it installs as a standalone desktop app. Install from the browser's
 address bar; it opens in its own window at `/chats`.
 
-The service worker (`public/sw.js`) is deliberately narrow — **app shell and
+The service worker (`app/web/public/sw.js`) is deliberately narrow — **app shell and
 static assets only**. Message data is already cached in IndexedDB by React
 Query, and caching it twice would risk serving a stale conversation from a layer
 that knows nothing about the sync watermark. It never touches cross-origin
 requests (your BlueBubbles server) or `/api/*` (session credentials).
 
 It registers in production builds only; in development a cached shell masks code
-changes. Bump `VERSION` in `public/sw.js` to force old caches out.
+changes. Bump `VERSION` in `app/web/public/sw.js` to force old caches out.
 
 Icons are generated procedurally, with no image-library dependency:
 
@@ -114,12 +132,12 @@ pinned chat appears in one place, never both. Capped at nine, as Messages is.
 - Searching hides the grid and searches across both sections, so a pinned chat
   is still findable by name.
 
-Pins live in `localStorage` (`src/store/pin-store.ts`) and are **per browser
+Pins live in `localStorage` (`app/web/src/store/pin-store.ts`) and are **per browser
 profile, not per account** — the server has no concept of them. `/chat/query`
 returns no `isPinned` field and there is no endpoint to set one; the official
 client keeps pins in its own local database too.
 
-`partitionPins()` in `src/lib/conversations.ts` splits the two sections. A
+`partitionPins()` in `packages/shared/src/conversations.ts` splits the two sections. A
 pinned chat outside the loaded message window is skipped rather than dropped
 from the pin list, and reappears in place once the feed reaches it.
 
@@ -129,7 +147,7 @@ The app is built to be installed as a desktop PWA, so a cold start must not
 refetch the world.
 
 **The cache is persisted to IndexedDB.** The whole React Query cache is
-dehydrated into IndexedDB (`src/lib/persister.ts`) and restored on load, so a
+dehydrated into IndexedDB (`app/web/src/lib/persister.ts`) and restored on load, so a
 reload paints from cache immediately. IndexedDB rather than localStorage: a
 conversation window plus contact avatars runs to several megabytes, past
 localStorage's ~5MB ceiling, and structured clones avoid a JSON round-trip on
@@ -141,7 +159,7 @@ from the next write to disk, so `gcTime` must outlive what you want persisted.
 Freshness comes from two places instead: the socket while connected, and a delta
 sync on load.
 
-**Delta sync is row-ID based.** `src/hooks/use-delta-sync.ts` reads the highest
+**Delta sync is row-ID based.** `app/web/src/hooks/use-delta-sync.ts` reads the highest
 row ID in the cached feed and asks only for messages above it, using the raw-SQL
 `where` clause the server exposes on `/message/query`. Row ID rather than a
 timestamp because it is monotonic: messages sharing a millisecond cannot be
@@ -151,7 +169,7 @@ A timestamp window is the fallback when row IDs are absent.
 Note the field name: **`/message/query` serialises the chat.db row ID as
 `originalROWID`, not `ROWID`**, while the `where` clause filters on the SQL
 column `message.ROWID`. Same underlying value, two names — `messageRowId()` in
-`src/lib/sync.ts` reads whichever is present. Measured against a real server, a
+`packages/shared/src/sync.ts` reads whichever is present. Measured against a real server, a
 delta returned 24 messages in 117ms where the full window is 1000 in ~1s.
 
 It runs once restoration completes, and again on every socket reconnect — a
@@ -164,7 +182,7 @@ Cold start, in order:
 2. Delta sync pulls messages above the cached row ID.
 3. The socket connects and takes over live updates.
 
-Bump `CACHE_BUSTER` in `src/lib/persister.ts` when the cached shape changes
+Bump `CACHE_BUSTER` in `app/web/src/lib/persister.ts` when the cached shape changes
 incompatibly; a mismatched buster discards the stored cache.
 
 ### Known gaps
@@ -195,7 +213,7 @@ only 48% of chats came back with `lastMessage` populated at all.
 So the conversation list is derived from `/message/query` instead: fetch the
 newest messages across all chats, group by `chats[0].guid`, and order by message
 date. Recency comes from the messages themselves. See `deriveConversations()`
-in `src/lib/conversations.ts`, and run `pnpm verify` to exercise it.
+in `packages/shared/src/conversations.ts`, and run `pnpm verify` to exercise it.
 
 Consequences worth knowing:
 
@@ -205,7 +223,7 @@ Consequences worth knowing:
 - Sidebar search covers loaded conversations only, which is why the placeholder
   says so. Server-side search would need a different endpoint.
 - `hasUnreadMessage` on chat records embedded in messages goes stale, so unread
-  state is tracked in `src/store/ui-store.ts` from first-hand signals (opening a
+  state is tracked in `app/web/src/store/ui-store.ts` from first-hand signals (opening a
   chat, read-status events, incoming messages) and takes precedence.
 
 `queryChats()` is still available for single-chat metadata and counts, and
@@ -217,7 +235,7 @@ The reference client compares normalised address strings exactly. That fails
 whenever an address book stores a local number — `(727) 417-4794` — while the
 handle carries the international form, `+17274174794`.
 
-`src/lib/contacts.ts` indexes each phone number under both its full digit string
+`packages/shared/src/contacts.ts` indexes each phone number under both its full digit string
 and its trailing 10 digits, so those two forms meet. A trailing-10 key is only
 generated for numbers long enough to have one, which keeps short codes like
 `22000` matching exactly and prevents them colliding with longer numbers. Exact
@@ -228,7 +246,7 @@ address book, names alone are 0.2MB in ~300ms while fetching every photo is
 8.7MB in ~3.2s — about 40x the payload for avatars that exist on 11% of
 contacts, and that cost would be re-paid on every write of the persisted cache.
 
-Photos are instead fetched **per contact, on demand**. `src/lib/avatar-loader.ts`
+Photos are instead fetched **per contact, on demand**. `app/web/src/lib/avatar-loader.ts`
 coalesces every avatar requested within 50ms into a single `/contact/query`
 (max 20 addresses), and each address is cached and persisted separately so a
 photo is fetched once and then survives reloads. Requests only fire for
