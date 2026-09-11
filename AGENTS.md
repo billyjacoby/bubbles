@@ -7,3 +7,34 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+# Bubbles project rules
+
+## Product architecture
+
+- Bubbles is an installable PWA and BlueBubbles client. The browser talks
+  directly to the configured BlueBubbles REST API and Socket.IO endpoint.
+- The Next.js server validates and stores connection credentials in an httpOnly
+  cookie, then server-rendered layouts provide that connection to the client.
+  Keep this security boundary coherent when changing authentication or routing.
+- Keep message and cache state in the existing browser persistence layers.
+  Never expose credentials in logs or committed fixtures.
+
+## Portability
+
+- Do not commit systemd units, Omarchy or Linux configuration, localhost port
+  choices, absolute user paths, editor state, or other machine-specific
+  deployment files.
+- Repository scripts and documentation must remain portable across ordinary
+  Next.js hosting environments. Keep local deployment automation outside the
+  repository.
+
+## Validation and delivery
+
+- Preserve the direct API boundary in `src/lib/api/`, realtime handling in
+  `src/lib/socket.ts`, React Query/IndexedDB data cache, and Zustand UI state
+  unless a requested change requires modifying them.
+- Run focused checks for the changed behavior, `pnpm lint`, and `pnpm build`.
+  Run `pnpm verify` when conversation, contact, or sync invariants are affected.
+- Commit completed changes on `main` using a short conventional-commit subject.
+  Keep commits cohesive and push `main` to `origin`; never force-push.
