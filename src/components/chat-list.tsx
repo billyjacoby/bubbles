@@ -15,7 +15,7 @@ import { formatListTimestamp } from "@/lib/format";
 import { Avatar } from "@/components/avatar";
 import { cn } from "@/lib/utils";
 
-export function ChatList() {
+export function ChatList({ compact = false }: { compact?: boolean }) {
   const {
     conversations,
     pinned,
@@ -49,9 +49,16 @@ export function ChatList() {
     });
   }, [conversations, unpinned, search, resolve]);
 
+  const visibleConversations = compact ? [...pinned, ...unpinned] : filtered;
+
   return (
     <>
-      <header className="flex flex-col gap-3 border-b border-border p-3">
+      <header
+        className={cn(
+          "flex flex-col gap-3 border-b border-border p-3",
+          compact && "hidden",
+        )}
+      >
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-semibold tracking-tight">Messages</h1>
           <div className="flex items-center gap-2">
@@ -102,11 +109,11 @@ export function ChatList() {
           </ListMessage>
         ) : null}
 
-        {!searching ? (
+        {!compact && !searching ? (
           <PinnedGrid items={pinned} activeGuid={activeGuid} />
         ) : null}
 
-        {!isPending && !error && filtered.length === 0 ? (
+        {!isPending && !error && visibleConversations.length === 0 ? (
           <ListMessage>
             {searching
               ? "No matching conversations."
@@ -117,14 +124,18 @@ export function ChatList() {
         ) : null}
 
         <ul>
-          {filtered.map((item) => (
+          {visibleConversations.map((item) => (
             <li key={item.chat.guid}>
-              <ChatRow item={item} active={item.chat.guid === activeGuid} />
+              <ChatRow
+                item={item}
+                active={item.chat.guid === activeGuid}
+                compact={compact}
+              />
             </li>
           ))}
         </ul>
 
-        {!isPending && !error && hasNextPage ? (
+        {!compact && !isPending && !error && hasNextPage ? (
           <div className="p-3">
             <button
               type="button"
@@ -144,9 +155,11 @@ export function ChatList() {
 function ChatRow({
   item,
   active,
+  compact,
 }: {
   item: ConversationListItem;
   active: boolean;
+  compact: boolean;
 }) {
   const chat = conversationChat(item);
   const resolve = useNameResolver();
@@ -156,6 +169,36 @@ function ChatRow({
   const typing = useUiStore((s) => s.typingChats.has(chat.guid));
   const preview = typing ? "Typing…" : chatPreview(chat, resolve);
   const title = chatTitle(chat, resolve);
+
+  if (compact) {
+    return (
+      <Link
+        href={`/chats/${encodeURIComponent(chat.guid)}`}
+        aria-current={active ? "page" : undefined}
+        aria-label={title}
+        title={title}
+        className={cn(
+          "flex justify-center py-2.5 transition-colors hover:bg-surface-hover",
+          active && "bg-surface-hover",
+        )}
+      >
+        <span className="relative">
+          <Avatar
+            chat={chat}
+            className={cn(
+              active && "ring-2 ring-accent ring-offset-2 ring-offset-surface",
+            )}
+          />
+          {item.hasUnread ? (
+            <span
+              aria-label="Unread"
+              className="absolute -right-0.5 -top-0.5 size-3 rounded-full border-2 border-surface bg-accent"
+            />
+          ) : null}
+        </span>
+      </Link>
+    );
+  }
 
   return (
     // The pin control cannot live inside the link, so the row is a container
