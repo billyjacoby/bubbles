@@ -63,7 +63,15 @@ src/
   store/
     ui-store.ts             Socket status, typing, unread, sidebar state
     pin-store.ts            Pinned conversations (localStorage, max 9)
+    theme-store.ts          Theme selection and browser persistence
 ```
+
+## Themes
+
+Use the palette control beside the connection status to switch between
+Hackerman, System, Light, and Dark. The choice is stored in `localStorage` for
+the current browser profile. Hackerman is the default and uses a terminal-like
+monospace treatment; the other themes retain the standard interface typography.
 
 ## Installing as a PWA
 

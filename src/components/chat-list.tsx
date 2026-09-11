@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { LogOut, Pin, PinOff, RefreshCw, Search, WifiOff } from "lucide-react";
+import {
+  LogOut,
+  Palette,
+  Pin,
+  PinOff,
+  RefreshCw,
+  Search,
+  WifiOff,
+} from "lucide-react";
 import { useConversations, type ConversationListItem } from "@/hooks/use-queries";
 import { useUiStore } from "@/store/ui-store";
 import { usePinStore, MAX_PINS } from "@/store/pin-store";
@@ -14,6 +22,7 @@ import { conversationChat } from "@/lib/conversations";
 import { formatListTimestamp } from "@/lib/format";
 import { Avatar } from "@/components/avatar";
 import { cn } from "@/lib/utils";
+import { setTheme, THEMES, useTheme, type ThemeId } from "@/store/theme-store";
 
 export function ChatList({ compact = false }: { compact?: boolean }) {
   const {
@@ -80,6 +89,7 @@ export function ChatList({ compact = false }: { compact?: boolean }) {
                 Offline
               </span>
             ) : null}
+            <ThemePicker />
             <DisconnectButton />
           </div>
         </div>
@@ -149,6 +159,32 @@ export function ChatList({ compact = false }: { compact?: boolean }) {
         ) : null}
       </nav>
     </>
+  );
+}
+
+function ThemePicker() {
+  const theme = useTheme();
+  const label = THEMES.find((option) => option.id === theme)?.label ?? "Theme";
+
+  return (
+    <label
+      title={`Theme: ${label}`}
+      className="relative rounded-md p-1 text-muted hover:bg-surface-hover hover:text-foreground focus-within:bg-surface-hover focus-within:text-foreground"
+    >
+      <Palette className="size-4" aria-hidden />
+      <select
+        value={theme}
+        onChange={(event) => setTheme(event.target.value as ThemeId)}
+        aria-label="Choose theme"
+        className="absolute inset-0 cursor-pointer opacity-0"
+      >
+        {THEMES.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

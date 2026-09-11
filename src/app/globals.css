@@ -13,11 +13,36 @@
   --color-bubble-out: var(--bubble-out);
   --color-bubble-out-fg: var(--bubble-out-fg);
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--app-font), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-:root {
+:root,
+:root[data-theme="hackerman"] {
+  color-scheme: dark;
+  --app-font: var(--font-geist-mono);
+  --background: #0b0c16;
+  --surface: #080910;
+  --surface-hover: #1f253a;
+  --foreground: #ddf7ff;
+  --muted: #6a6e95;
+  --border: #2d3450;
+  --accent: #82fb9c;
+  --bubble-in: #151828;
+  --bubble-in-fg: #ddf7ff;
+  --bubble-out: #82fb9c;
+  --bubble-out-fg: #06060c;
+  --radius-sm: 0.125rem;
+  --radius-md: 0.1875rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.375rem;
+  --radius-2xl: 0.5rem;
+}
+
+:root[data-theme="light"],
+:root[data-theme="system"] {
+  color-scheme: light;
+  --app-font: var(--font-geist-sans);
   --background: #ffffff;
   --surface: #f5f5f7;
   --surface-hover: #ebebef;
@@ -31,8 +56,25 @@
   --bubble-out-fg: #ffffff;
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --app-font: var(--font-geist-sans);
+  --background: #0b0b0d;
+  --surface: #151518;
+  --surface-hover: #1f1f24;
+  --foreground: #f2f2f5;
+  --muted: #8e8e98;
+  --border: #26262c;
+  --accent: #0a84ff;
+  --bubble-in: #26262c;
+  --bubble-in-fg: #f2f2f5;
+  --bubble-out: #0a84ff;
+  --bubble-out-fg: #ffffff;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root[data-theme="system"] {
+    color-scheme: dark;
     --background: #0b0b0d;
     --surface: #151518;
     --surface-hover: #1f1f24;
