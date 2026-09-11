@@ -39,13 +39,22 @@ to this transport choice, not an oversight.
 
 ## Terminal client
 
-Run the TUI with connection details in flags:
+On first launch, the TUI asks for the server URL and password, validates them,
+and saves them in the platform user-config directory with owner-only file
+permissions:
+
+```bash
+pnpm tui
+```
+
+Run `pnpm tui -- --setup` to replace the saved connection. Flags can also
+provide or override connection details:
 
 ```bash
 pnpm tui -- --server https://bluebubbles.example.com --password 'secret'
 ```
 
-Or keep credentials out of shell history by using environment variables:
+Environment variables override saved values too:
 
 ```bash
 export BLUEBUBBLES_URL=https://bluebubbles.example.com

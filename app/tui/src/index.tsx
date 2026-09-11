@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import React from "react";
 import { render } from "ink";
-import { App } from "./app.js";
-import { HELP, parseCli } from "./cli.js";
+import { HELP, parseCli, resolveConnection } from "./cli.js";
+import { loadConnection } from "./config.js";
+import { Root } from "./root.js";
 
 let options;
 try {
@@ -15,9 +16,13 @@ try {
 
 if (options.help) {
   process.stdout.write(HELP);
-} else if (!options.connection) {
-  process.stderr.write(`Missing BlueBubbles connection details.\n\n${HELP}`);
-  process.exitCode = 1;
 } else {
-  render(<App connection={options.connection} />);
+  const saved = await loadConnection();
+  const candidate = resolveConnection(options, saved);
+  render(
+    <Root
+      initialConnection={options.setup ? undefined : candidate}
+      onboardingDefaults={candidate}
+    />,
+  );
 }

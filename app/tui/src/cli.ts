@@ -2,8 +2,10 @@ import { parseArgs } from "node:util";
 import { normalizeServerUrl, type Connection } from "@bubbles/shared";
 
 export interface CliOptions {
-  connection?: Connection;
+  server?: string;
+  password?: string;
   help: boolean;
+  setup: boolean;
 }
 
 export function parseCli(argv: string[]): CliOptions {
@@ -15,6 +17,7 @@ export function parseCli(argv: string[]): CliOptions {
     options: {
       server: { type: "string", short: "s" },
       password: { type: "string", short: "p" },
+      setup: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
     strict: true,
@@ -25,17 +28,31 @@ export function parseCli(argv: string[]): CliOptions {
 
   return {
     help: values.help,
-    connection:
-      server && password
-        ? { serverUrl: normalizeServerUrl(server), password }
-        : undefined,
+    setup: values.setup,
+    server,
+    password,
   };
+}
+
+export function resolveConnection(
+  options: Pick<CliOptions, "server" | "password">,
+  saved?: Connection,
+): Connection | undefined {
+  const server = options.server ?? saved?.serverUrl;
+  const password = options.password ?? saved?.password;
+  if (!server || !password) return undefined;
+  return { serverUrl: normalizeServerUrl(server), password };
 }
 
 export const HELP = `Bubbles TUI
 
 Usage:
+  pnpm tui
   pnpm tui -- --server <url> --password <password>
+  pnpm tui -- --setup
+
+The first launch opens setup and saves a validated connection for next time.
+Use --setup to replace it.
 
 Environment:
   BLUEBUBBLES_URL       BlueBubbles server origin
