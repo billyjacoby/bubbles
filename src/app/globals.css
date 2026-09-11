@@ -12,6 +12,8 @@
   --color-bubble-in-fg: var(--bubble-in-fg);
   --color-bubble-out: var(--bubble-out);
   --color-bubble-out-fg: var(--bubble-out-fg);
+  --color-bubble-out-sms: var(--bubble-out-sms);
+  --color-bubble-out-sms-fg: var(--bubble-out-sms-fg);
 
   --font-sans: var(--app-font), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -32,6 +34,8 @@
   --bubble-in-fg: #ddf7ff;
   --bubble-out: #829dd4;
   --bubble-out-fg: #06060c;
+  --bubble-out-sms: #82fb9c;
+  --bubble-out-sms-fg: #06060c;
   --radius-sm: 0.125rem;
   --radius-md: 0.1875rem;
   --radius-lg: 0.25rem;
@@ -54,6 +58,8 @@
   --bubble-in-fg: #111114;
   --bubble-out: #0a7cff;
   --bubble-out-fg: #ffffff;
+  --bubble-out-sms: #34c759;
+  --bubble-out-sms-fg: #071a0c;
 }
 
 :root[data-theme="dark"] {
@@ -70,6 +76,8 @@
   --bubble-in-fg: #f2f2f5;
   --bubble-out: #0a84ff;
   --bubble-out-fg: #ffffff;
+  --bubble-out-sms: #34c759;
+  --bubble-out-sms-fg: #071a0c;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -86,6 +94,8 @@
     --bubble-in-fg: #f2f2f5;
     --bubble-out: #0a84ff;
     --bubble-out-fg: #ffffff;
+    --bubble-out-sms: #34c759;
+    --bubble-out-sms-fg: #071a0c;
   }
 }
 

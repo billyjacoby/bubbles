@@ -15,7 +15,12 @@ import {
   conversationChat,
   partitionPins,
 } from "../src/lib/conversations.ts";
-import { chatTitle, chatPreview } from "../src/lib/message-utils.ts";
+import {
+  chatPreview,
+  chatService,
+  chatTitle,
+  messageService,
+} from "../src/lib/message-utils.ts";
 import {
   buildContactIndex,
   lookupContact,
@@ -117,6 +122,39 @@ test("conversationChat exposes lastMessage for preview helpers", () => {
 
 test("handles an empty feed", () => {
   assert.deepEqual(deriveConversations([]), []);
+});
+
+console.log("\nMessage service");
+
+test("reads iMessage and SMS from chat GUIDs", () => {
+  assert.equal(chatService({ guid: "iMessage;-;+15551234567" }), "iMessage");
+  assert.equal(chatService({ guid: "SMS;-;+15551234567" }), "SMS");
+});
+
+test("resolves an ambiguous chat from participant metadata", () => {
+  assert.equal(
+    chatService({
+      guid: "any;-;+15551234567",
+      participants: [{ address: "+15551234567", service: "SMS" }],
+    }),
+    "SMS",
+  );
+});
+
+test("prefers per-message service metadata over the chat", () => {
+  assert.equal(
+    messageService({
+      guid: "m1",
+      isFromMe: true,
+      handle: { address: "+15551234567", service: "SMS" },
+      chats: [{ guid: "iMessage;-;+15551234567" }],
+    }),
+    "SMS",
+  );
+});
+
+test("reports an unknown service when the server data is ambiguous", () => {
+  assert.equal(chatService({ guid: "any;-;+15551234567" }), null);
 });
 
 console.log("\nPinned conversations");

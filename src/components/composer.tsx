@@ -4,16 +4,24 @@ import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { SendHorizontal } from "lucide-react";
 import { useSendMessage, useTypingIndicator } from "@/hooks/use-send-message";
 import { cn } from "@/lib/utils";
+import type { ChatService } from "@/lib/message-utils";
 
 const MAX_ROWS = 6;
 
-export function Composer({ chatGuid }: { chatGuid: string }) {
+export function Composer({
+  chatGuid,
+  service,
+}: {
+  chatGuid: string;
+  service: ChatService | null;
+}) {
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const send = useSendMessage(chatGuid);
   const typing = useTypingIndicator(chatGuid);
+  const isSms = service === "SMS";
 
   function resize() {
     const el = textareaRef.current;
@@ -69,7 +77,7 @@ export function Composer({ chatGuid }: { chatGuid: string }) {
           ref={textareaRef}
           rows={1}
           value={text}
-          placeholder="iMessage"
+          placeholder={isSms ? "SMS" : "iMessage"}
           aria-label="Message"
           onChange={(e) => {
             setText(e.target.value);
@@ -87,7 +95,10 @@ export function Composer({ chatGuid }: { chatGuid: string }) {
           disabled={!text.trim() || send.isPending}
           aria-label="Send message"
           className={cn(
-            "flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-white transition-opacity",
+            "flex size-9 shrink-0 items-center justify-center rounded-full transition-opacity",
+            isSms
+              ? "bg-bubble-out-sms text-bubble-out-sms-fg"
+              : "bg-bubble-out text-bubble-out-fg",
             (!text.trim() || send.isPending) && "opacity-40",
           )}
         >

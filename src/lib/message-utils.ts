@@ -6,6 +6,39 @@ import type {
   MessageSummaryInfo,
 } from "@/lib/types";
 
+export type ChatService = "iMessage" | "SMS";
+
+function normalizeService(service: string | null | undefined): ChatService | null {
+  const normalized = service?.trim().toLowerCase();
+  if (normalized === "imessage") return "iMessage";
+  if (normalized === "sms") return "SMS";
+  return null;
+}
+
+/** Resolve the current transport for a chat from its richest available data. */
+export function chatService(chat: Chat): ChatService | null {
+  const guidService = normalizeService(chat.guid.split(";", 1)[0]);
+  if (guidService) return guidService;
+
+  const participantServices = new Set(
+    (chat.participants ?? [])
+      .map((participant) => normalizeService(participant.service))
+      .filter((service): service is ChatService => service !== null),
+  );
+  if (participantServices.size === 1) return participantServices.values().next().value!;
+
+  return normalizeService(chat.lastMessage?.handle?.service);
+}
+
+/** Prefer a message's own service so conversations that switched retain history. */
+export function messageService(message: Message): ChatService | null {
+  return (
+    normalizeService(message.handle?.service) ??
+    message.chats?.map(chatService).find((service) => service !== null) ??
+    null
+  );
+}
+
 /** The server sometimes returns a bare object where an array is documented. */
 function toArray<T>(value: T | T[] | null | undefined): T[] {
   if (value === null || value === undefined) return [];

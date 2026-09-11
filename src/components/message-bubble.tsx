@@ -10,7 +10,9 @@ import {
   isEdited,
   isSending,
   isUnsent,
+  messageService,
   messageText,
+  type ChatService,
 } from "@/lib/message-utils";
 import { useNameResolver } from "@/hooks/use-contacts";
 import { cn } from "@/lib/utils";
@@ -26,6 +28,8 @@ export interface RenderedMessage {
   showSender: boolean;
   /** Whether this is the last bubble in a run from the same sender. */
   isTail: boolean;
+  /** Current chat service, used when optimistic messages lack handle metadata. */
+  service?: ChatService | null;
 }
 
 export function MessageBubble({
@@ -34,6 +38,7 @@ export function MessageBubble({
   replyTo,
   showSender,
   isTail,
+  service,
 }: RenderedMessage) {
   const resolve = useNameResolver();
   const fromMe = message.isFromMe;
@@ -42,6 +47,7 @@ export function MessageBubble({
   const unsent = isUnsent(message);
   const failed = hasFailed(message);
   const sending = isSending(message);
+  const isSms = (messageService(message) ?? service) === "SMS";
 
   return (
     <div
@@ -85,9 +91,11 @@ export function MessageBubble({
           <div
             className={cn(
               "w-fit whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm",
-              fromMe
-                ? "ml-auto bg-bubble-out text-bubble-out-fg"
-                : "bg-bubble-in text-bubble-in-fg",
+              fromMe && isSms
+                ? "ml-auto bg-bubble-out-sms text-bubble-out-sms-fg"
+                : fromMe
+                  ? "ml-auto bg-bubble-out text-bubble-out-fg"
+                  : "bg-bubble-in text-bubble-in-fg",
               sending && "opacity-60",
               unsent && "border border-border bg-transparent italic text-muted",
               isTail && (fromMe ? "rounded-br-md" : "rounded-bl-md"),

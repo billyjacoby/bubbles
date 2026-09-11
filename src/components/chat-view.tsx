@@ -2,7 +2,7 @@
 
 import { PanelLeft, PanelLeftClose, Pin, PinOff } from "lucide-react";
 import { useChat } from "@/hooks/use-queries";
-import { chatTitle, isGroup } from "@/lib/message-utils";
+import { chatService, chatTitle, isGroup } from "@/lib/message-utils";
 import { conversationChat } from "@/lib/conversations";
 import { Avatar } from "@/components/avatar";
 import { Composer } from "@/components/composer";
@@ -16,6 +16,7 @@ export function ChatView({ chatGuid }: { chatGuid: string }) {
   const conversation = useChat(chatGuid);
   const resolve = useNameResolver();
   const chat = conversation ? conversationChat(conversation) : null;
+  const service = chatService(chat ?? { guid: chatGuid });
 
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
@@ -83,8 +84,8 @@ export function ChatView({ chatGuid }: { chatGuid: string }) {
         </button>
       </header>
 
-      <MessageThread chatGuid={chatGuid} />
-      <Composer chatGuid={chatGuid} />
+      <MessageThread chatGuid={chatGuid} service={service} />
+      <Composer chatGuid={chatGuid} service={service} />
     </>
   );
 }

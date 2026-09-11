@@ -7,6 +7,7 @@ import { flattenMessages } from "@/lib/cache";
 import { buildThread } from "@/lib/thread";
 import { formatDivider } from "@/lib/format";
 import { systemEventText } from "@/lib/message-utils";
+import type { ChatService } from "@/lib/message-utils";
 import { MessageBubble } from "@/components/message-bubble";
 import { useUiStore } from "@/store/ui-store";
 import { useNameResolver } from "@/hooks/use-contacts";
@@ -14,7 +15,13 @@ import { useNameResolver } from "@/hooks/use-contacts";
 /** How close to the bottom counts as "following" the conversation. */
 const PIN_THRESHOLD_PX = 200;
 
-export function MessageThread({ chatGuid }: { chatGuid: string }) {
+export function MessageThread({
+  chatGuid,
+  service,
+}: {
+  chatGuid: string;
+  service: ChatService | null;
+}) {
   const { data, isPending, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useMessages(chatGuid);
 
@@ -159,7 +166,7 @@ export function MessageThread({ chatGuid }: { chatGuid: string }) {
               );
             }
 
-            return <MessageBubble key={item.id} {...item} />;
+            return <MessageBubble key={item.id} {...item} service={service} />;
           })}
         </div>
 
