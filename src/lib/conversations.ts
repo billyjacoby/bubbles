@@ -75,3 +75,39 @@ export function deriveConversations(messages: Message[]): Conversation[] {
 export function conversationChat(conversation: Conversation): Chat {
   return { ...conversation.chat, lastMessage: conversation.lastMessage };
 }
+
+/**
+ * Split conversations into the pinned grid and the list below it.
+ *
+ * Pinned conversations are removed from the list entirely, as in Messages — a
+ * pinned chat appears in the grid only, never twice.
+ *
+ * Pin order is positional and independent of activity, so a pinned
+ * conversation holds its place whether or not it has new messages. Everything
+ * else keeps its existing recency order.
+ *
+ * A pinned GUID with no matching conversation is skipped rather than dropped
+ * from the pin list — it may simply be outside the loaded message window, and
+ * reappears in place once the feed reaches it.
+ */
+export function partitionPins<T extends { chat: Chat }>(
+  conversations: T[],
+  pinnedGuids: string[],
+): { pinned: T[]; unpinned: T[] } {
+  if (pinnedGuids.length === 0) {
+    return { pinned: [], unpinned: conversations };
+  }
+
+  const byGuid = new Map(conversations.map((c) => [c.chat.guid, c]));
+  const pinnedSet = new Set(pinnedGuids);
+
+  // Built by walking the pin list, so grid order follows the user's ordering
+  // rather than the feed's.
+  const pinned = pinnedGuids
+    .map((guid) => byGuid.get(guid))
+    .filter((c): c is T => c !== undefined);
+
+  const unpinned = conversations.filter((c) => !pinnedSet.has(c.chat.guid));
+
+  return { pinned, unpinned };
+}

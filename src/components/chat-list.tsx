@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { LogOut, Search, WifiOff } from "lucide-react";
+import { LogOut, Pin, PinOff, RefreshCw, Search, WifiOff } from "lucide-react";
 import { useConversations, type ConversationListItem } from "@/hooks/use-queries";
 import { useUiStore } from "@/store/ui-store";
+import { usePinStore, MAX_PINS } from "@/store/pin-store";
+import { PinnedGrid } from "@/components/pinned-grid";
 import { useNameResolver } from "@/hooks/use-contacts";
 import { chatPreview, chatTitle } from "@/lib/message-utils";
 import { conversationChat } from "@/lib/conversations";
@@ -16,6 +18,8 @@ import { cn } from "@/lib/utils";
 export function ChatList() {
   const {
     conversations,
+    pinned,
+    unpinned,
     isPending,
     error,
     hasNextPage,
@@ -28,17 +32,22 @@ export function ChatList() {
   const params = useParams<{ guid?: string }>();
   const activeGuid = params?.guid ? decodeURIComponent(params.guid) : null;
   const socketConnected = useUiStore((s) => s.socketConnected);
+  const syncing = useUiStore((s) => s.syncing);
 
+  const searching = search.trim().length > 0;
+
+  // Search spans both sections, so results come from the combined list and the
+  // pinned grid is hidden while searching.
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return conversations;
+    if (!term) return unpinned;
     return conversations.filter((item) => {
       const chat = conversationChat(item);
       return `${chatTitle(chat, resolve)} ${chatPreview(chat, resolve)}`
         .toLowerCase()
         .includes(term);
     });
-  }, [conversations, search, resolve]);
+  }, [conversations, unpinned, search, resolve]);
 
   return (
     <>
@@ -46,6 +55,15 @@ export function ChatList() {
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-semibold tracking-tight">Messages</h1>
           <div className="flex items-center gap-2">
+            {syncing ? (
+              <span
+                title="Catching up on new messages"
+                className="flex items-center gap-1 text-xs text-muted"
+              >
+                <RefreshCw className="size-3.5 animate-spin" aria-hidden />
+                Syncing
+              </span>
+            ) : null}
             {!socketConnected ? (
               <span
                 title="Live updates are disconnected"
@@ -84,9 +102,17 @@ export function ChatList() {
           </ListMessage>
         ) : null}
 
+        {!searching ? (
+          <PinnedGrid items={pinned} activeGuid={activeGuid} />
+        ) : null}
+
         {!isPending && !error && filtered.length === 0 ? (
           <ListMessage>
-            {search ? "No matching conversations." : "No conversations yet."}
+            {searching
+              ? "No matching conversations."
+              : pinned.length > 0
+                ? "No other conversations."
+                : "No conversations yet."}
           </ListMessage>
         ) : null}
 
@@ -124,43 +150,88 @@ function ChatRow({
 }) {
   const chat = conversationChat(item);
   const resolve = useNameResolver();
+  const togglePin = usePinStore((s) => s.toggle);
+  const pinCount = usePinStore((s) => s.pinned.length);
+  const atPinLimit = !item.isPinned && pinCount >= MAX_PINS;
   const typing = useUiStore((s) => s.typingChats.has(chat.guid));
   const preview = typing ? "Typing…" : chatPreview(chat, resolve);
+  const title = chatTitle(chat, resolve);
 
   return (
-    <Link
-      href={`/chats/${encodeURIComponent(chat.guid)}`}
-      aria-current={active ? "page" : undefined}
+    // The pin control cannot live inside the link, so the row is a container
+    // with the link and the control as siblings.
+    <div
       className={cn(
-        "flex items-center gap-3 px-3 py-2.5 transition-colors",
+        "group relative transition-colors",
         active ? "bg-surface-hover" : "hover:bg-surface-hover",
       )}
     >
-      <Avatar chat={chat} />
+      <Link
+        href={`/chats/${encodeURIComponent(chat.guid)}`}
+        aria-current={active ? "page" : undefined}
+        className="flex items-center gap-3 py-2.5 pl-3 pr-10"
+      >
+        <Avatar chat={chat} />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-sm font-medium">
-            {chatTitle(chat, resolve)}
-          </span>
-          <span className="shrink-0 text-[11px] text-muted">
-            {formatListTimestamp(item.activity)}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="flex min-w-0 items-center gap-1">
+              {item.isPinned ? (
+                <Pin
+                  className="size-3 shrink-0 rotate-45 text-muted"
+                  aria-hidden
+                />
+              ) : null}
+              <span className="truncate text-sm font-medium">{title}</span>
+            </span>
+            <span className="shrink-0 text-[11px] text-muted">
+              {formatListTimestamp(item.activity)}
+            </span>
+          </div>
+          <span
+            className={cn("truncate text-xs", typing ? "text-accent" : "text-muted")}
+          >
+            {preview}
           </span>
         </div>
-        <span
-          className={cn("truncate text-xs", typing ? "text-accent" : "text-muted")}
-        >
-          {preview}
-        </span>
-      </div>
+      </Link>
 
-      {item.hasUnread ? (
-        <span
-          aria-label="Unread"
-          className="size-2 shrink-0 rounded-full bg-accent"
-        />
-      ) : null}
-    </Link>
+      <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center">
+        {item.hasUnread ? (
+          <span
+            aria-label="Unread"
+            className="size-2 rounded-full bg-accent group-hover:hidden"
+          />
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => togglePin(chat.guid)}
+          disabled={atPinLimit}
+          aria-pressed={item.isPinned}
+          title={
+            atPinLimit
+              ? `Unpin another conversation first (limit ${MAX_PINS})`
+              : item.isPinned
+                ? `Unpin ${title}`
+                : `Pin ${title}`
+          }
+          aria-label={item.isPinned ? `Unpin ${title}` : `Pin ${title}`}
+          className={cn(
+            "rounded p-1 text-muted hover:bg-border hover:text-foreground",
+            // Hidden until hover — and always reachable by keyboard.
+            "hidden group-hover:block focus-visible:block",
+            atPinLimit && "cursor-not-allowed opacity-40 hover:bg-transparent",
+          )}
+        >
+          {item.isPinned ? (
+            <PinOff className="size-3.5" aria-hidden />
+          ) : (
+            <Pin className="size-3.5" aria-hidden />
+          )}
+        </button>
+      </div>
+    </div>
   );
 }
 

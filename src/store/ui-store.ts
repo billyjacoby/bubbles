@@ -17,11 +17,14 @@ interface UiState {
   unread: Record<string, boolean>;
   /** Sidebar collapse, only honoured while a conversation is open. */
   sidebarCollapsed: boolean;
+  /** A delta sync is in flight. */
+  syncing: boolean;
 
   setSocketConnected: (connected: boolean) => void;
   setTyping: (chatGuid: string, typing: boolean) => void;
   setUnread: (chatGuid: string, unread: boolean) => void;
   toggleSidebar: () => void;
+  setSyncing: (syncing: boolean) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -29,8 +32,11 @@ export const useUiStore = create<UiState>((set) => ({
   typingChats: new Set(),
   unread: {},
   sidebarCollapsed: false,
+  syncing: false,
 
   setSocketConnected: (socketConnected) => set({ socketConnected }),
+
+  setSyncing: (syncing) => set({ syncing }),
 
   toggleSidebar: () =>
     set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),

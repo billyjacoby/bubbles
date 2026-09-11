@@ -4,12 +4,15 @@ import { useParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { ChatList } from "@/components/chat-list";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
+import { useDeltaSync } from "@/hooks/use-delta-sync";
 import { useUiStore } from "@/store/ui-store";
 import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: ReactNode }) {
   // One socket for the whole app, owned by the shell.
   useRealtimeSync();
+  // Catch up on anything missed while the app was closed or disconnected.
+  useDeltaSync();
 
   const params = useParams<{ guid?: string }>();
   const hasThread = Boolean(params?.guid);

@@ -101,6 +101,36 @@ export async function queryRecentMessages(
   return envelope.data ?? [];
 }
 
+/**
+ * Messages added since a known row ID — the incremental sync query.
+ *
+ * Row ID rather than a timestamp because it is monotonic: messages sharing a
+ * millisecond cannot be skipped, and a server clock adjustment cannot cause the
+ * window to miss anything. `where` takes raw SQL fragments with named args.
+ */
+export async function queryMessagesSinceRowId(
+  conn: Connection,
+  startRowId: number,
+  { offset = 0, limit = 500 }: { offset?: number; limit?: number } = {},
+): Promise<Message[]> {
+  const envelope = await request<Message[]>(conn, "/message/query", {
+    method: "POST",
+    body: {
+      with: [...FEED_WITH],
+      where: [
+        {
+          statement: "message.ROWID > :startRowId",
+          args: { startRowId },
+        },
+      ],
+      sort: "DESC",
+      offset,
+      limit,
+    },
+  });
+  return envelope.data ?? [];
+}
+
 export function getChat(conn: Connection, guid: string): Promise<Chat> {
   return requestData<Chat>(conn, `/chat/${encodeURIComponent(guid)}`, {
     // GET endpoints take `with` as a comma-joined string with no spaces.

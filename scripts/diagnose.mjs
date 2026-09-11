@@ -2,62 +2,17 @@
 /**
  * Diagnose chat/message sync against a BlueBubbles server.
  *
- * Usage:
- *   node scripts/diagnose.mjs --url https://your-server --password YOUR_PASSWORD
- *   BB_URL=... BB_PASSWORD=... node scripts/diagnose.mjs
+ * Credentials come from .env.local (see .env.example), or --url/--password.
  *
  * Read-only: every request is a GET or a query POST. Nothing is sent, changed
  * or deleted.
  */
 
-const args = process.argv.slice(2);
-function arg(name) {
-  const i = args.indexOf(`--${name}`);
-  return i !== -1 ? args[i + 1] : undefined;
-}
+import { loadConfig, makeApi } from "./config.mjs";
 
-const SERVER = (arg("url") ?? process.env.BB_URL ?? "").replace(/\/+$/, "");
-const PASSWORD = arg("password") ?? process.env.BB_PASSWORD ?? "";
-
-if (!SERVER || !PASSWORD) {
-  console.error("Missing credentials.\n");
-  console.error("  node scripts/diagnose.mjs --url https://server --password PW");
-  console.error("  BB_URL=... BB_PASSWORD=... node scripts/diagnose.mjs");
-  process.exit(1);
-}
-
-const origin = new URL(/^https?:\/\//.test(SERVER) ? SERVER : `https://${SERVER}`).origin;
-
-async function api(path, { method = "GET", query = {}, body } = {}) {
-  const url = new URL(`${origin}/api/v1${path}`);
-  url.searchParams.set("guid", PASSWORD);
-  for (const [k, v] of Object.entries(query)) {
-    if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
-  }
-
-  const res = await fetch(url, {
-    method,
-    headers: {
-      "ngrok-skip-browser-warning": "true",
-      skip_zrok_interstitial: "true",
-      ...(body ? { "Content-Type": "application/json" } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(30_000),
-  });
-
-  const text = await res.text();
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    throw new Error(`${path}: non-JSON response (status ${res.status}): ${text.slice(0, 200)}`);
-  }
-  if (res.status !== 200) {
-    throw new Error(`${path}: status ${res.status}: ${json?.error?.message ?? json?.message ?? ""}`);
-  }
-  return json;
-}
+const config = loadConfig();
+const rawApi = makeApi(config);
+const api = async (path, opts) => (await rawApi(path, opts)).json;
 
 const ts = (ms) => (ms ? new Date(ms).toLocaleString() : "—");
 const startOfToday = new Date().setHours(0, 0, 0, 0);
@@ -174,66 +129,71 @@ async function main() {
     console.log(`  ${ts(newest).padEnd(24)} ${String(count).padStart(3)} msg  ${chatLabel(chat).slice(0, 40)}`);
   }
 
-  heading("6. Do those chats appear in the chat list our client builds?");
+  heading("6. /chat/query vs the message-derived list");
 
-  // Reproduce exactly what the app requests today.
+  // The server applies `sort` after LIMIT/OFFSET, so this endpoint cannot
+  // produce a globally ordered list. Kept here to confirm the defect still
+  // exists rather than to drive the UI.
   const listed = await api("/chat/query", {
     method: "POST",
     body: { with: ["lastMessage", "participants"], offset: 0, limit: 200, sort: "lastmessage" },
   });
-  const listedChats = listed.data ?? [];
-  const listedGuids = new Set(listedChats.map((c) => c.guid));
+  const listedGuids = new Set((listed.data ?? []).map((c) => c.guid));
+  const missingFromChatQuery = [...activeToday.keys()].filter((g) => !listedGuids.has(g));
 
-  console.log(`chats returned by our query: ${listedChats.length}`);
+  console.log(`/chat/query (first 200)      : ${listedGuids.size} chats`);
+  console.log(`  active-today chats missing : ${missingFromChatQuery.length}`);
 
-  const missing = [];
-  const staleLastMessage = [];
+  // What the app actually uses: conversations derived from the message feed.
+  const feed = await api("/message/query", {
+    method: "POST",
+    body: {
+      with: ["chats", "chats.participants", "attributedBody"],
+      sort: "DESC",
+      offset: 0,
+      limit: 1000,
+    },
+  });
 
-  for (const [guid, { chat, newest }] of activeToday) {
-    if (!listedGuids.has(guid)) {
-      missing.push({ chat, newest });
-      continue;
-    }
-    const listedChat = listedChats.find((c) => c.guid === guid);
-    const listedDate = listedChat?.lastMessage?.dateCreated ?? 0;
-    // Allow a second of slack for clock/rounding differences.
-    if (listedDate < newest - 1000) {
-      staleLastMessage.push({ chat, newest, listedDate });
-    }
+  const derivedOrder = [];
+  const seen = new Set();
+  for (const m of feed.data ?? []) {
+    const guid = m.chats?.[0]?.guid;
+    if (!guid || seen.has(guid)) continue;
+    seen.add(guid);
+    derivedOrder.push(guid);
   }
+  const missingFromDerived = [...activeToday.keys()].filter((g) => !seen.has(g));
 
-  console.log(`active-today chats MISSING from the list : ${missing.length}`);
-  for (const { chat, newest } of missing) {
-    console.log(`  ${ts(newest).padEnd(24)} ${chatLabel(chat).slice(0, 40)}`);
-  }
-
-  console.log(`\nactive-today chats with STALE lastMessage: ${staleLastMessage.length}`);
-  for (const { chat, newest, listedDate } of staleLastMessage) {
-    console.log(
-      `  real ${ts(newest).padEnd(22)} list shows ${ts(listedDate).padEnd(22)} ${chatLabel(chat).slice(0, 32)}`,
-    );
-  }
+  console.log(`message-derived list         : ${derivedOrder.length} conversations`);
+  console.log(`  active-today chats missing : ${missingFromDerived.length}`);
+  console.log(
+    `  active-today chats in top ${activeToday.size} : ` +
+      `${[...activeToday.keys()].filter((g) => derivedOrder.slice(0, activeToday.size).includes(g)).length}/${activeToday.size}`,
+  );
 
   heading("Verdict");
 
   if (!todayMessages.data?.total) {
-    console.log("Server has no messages today -> SERVER-SIDE ingestion issue.");
-  } else if (missing.length > 0) {
+    console.log("Server reports no messages today -> SERVER-SIDE ingestion issue.");
+  } else if (missingFromDerived.length > 0) {
     console.log(
-      "Server HAS today's messages, but chats that received them are absent from\n" +
-        "/chat/query -> the chat-list query (sort/paging) is at fault. Fixable in\n" +
-        "our client.",
-    );
-  } else if (staleLastMessage.length > 0) {
-    console.log(
-      "Chats are present but their `lastMessage` is stale -> the preview and\n" +
-        "ordering cannot be trusted. Our client must derive recency another way.",
+      "Today's chats are missing from the MESSAGE-DERIVED list. This is the list\n" +
+        "the app renders, so this is a real client-side bug — investigate\n" +
+        "deriveConversations() and the feed window size.",
     );
   } else {
     console.log(
-      "The chat list looks correct from the API's side. The problem is likely in\n" +
-        "how our client renders or sorts the result — send this output over.",
+      "The message-derived list the app uses is correct: today's chats are\n" +
+        "present and ordered.",
     );
+    if (missingFromChatQuery.length > 0) {
+      console.log(
+        `\nNote: /chat/query still omits ${missingFromChatQuery.length} of them, as expected —\n` +
+          "it sorts per page rather than globally. The app does not use it for\n" +
+          "listing; see the README. This is a server defect, not a regression.",
+      );
+    }
   }
 }
 

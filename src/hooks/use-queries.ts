@@ -13,9 +13,14 @@ import {
 } from "@/lib/api/chats";
 import { queryKeys } from "@/lib/query-keys";
 import { flattenFeed } from "@/lib/cache";
-import { deriveConversations, type Conversation } from "@/lib/conversations";
+import {
+  partitionPins,
+  deriveConversations,
+  type Conversation,
+} from "@/lib/conversations";
 import { useConnection } from "@/components/connection-provider";
 import { useUiStore } from "@/store/ui-store";
+import { usePinStore } from "@/store/pin-store";
 import type { Message } from "@/lib/types";
 
 /**
@@ -33,7 +38,8 @@ export function useServerInfo() {
   return useQuery({
     queryKey: queryKeys.serverInfo,
     queryFn: () => getServerInfo(conn),
-    staleTime: 5 * 60_000,
+    // Finite so enabling the Private API helper is noticed without a reload.
+    staleTime: 30 * 60_000,
   });
 }
 
@@ -66,25 +72,39 @@ export function useConversationFeed() {
 
 export interface ConversationListItem extends Conversation {
   hasUnread: boolean;
+  isPinned: boolean;
 }
 
-/** The ordered sidebar list, with locally-tracked unread state applied. */
+/**
+ * The sidebar data: a pinned grid and the list below it.
+ *
+ * `conversations` is everything in recency order (used for search, which spans
+ * both); `pinned` and `unpinned` are the two rendered sections. A pinned chat
+ * appears in the grid only, never in both.
+ */
 export function useConversations() {
   const query = useConversationFeed();
   const unreadOverrides = useUiStore((s) => s.unread);
+  const pinnedGuids = usePinStore((s) => s.pinned);
 
-  const conversations = useMemo(() => {
+  const { conversations, pinned, unpinned } = useMemo(() => {
     const derived = deriveConversations(flattenFeed(query.data));
-    return derived.map<ConversationListItem>((conversation) => {
+    const pinnedSet = new Set(pinnedGuids);
+
+    const withState = derived.map<ConversationListItem>((conversation) => {
       const override = unreadOverrides[conversation.chat.guid];
       return {
         ...conversation,
         hasUnread: override ?? conversation.chat.hasUnreadMessage ?? false,
+        isPinned: pinnedSet.has(conversation.chat.guid),
       };
     });
-  }, [query.data, unreadOverrides]);
 
-  return { ...query, conversations };
+    const split = partitionPins(withState, pinnedGuids);
+    return { conversations: withState, ...split };
+  }, [query.data, unreadOverrides, pinnedGuids]);
+
+  return { ...query, conversations, pinned, unpinned };
 }
 
 /** Look up one conversation's chat record from the loaded feed. */

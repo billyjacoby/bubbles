@@ -1,13 +1,17 @@
 import type { ApiEnvelope, Connection } from "@/lib/types";
 
 export class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly type?: string,
-  ) {
+  // Declared as fields rather than constructor parameter properties: the
+  // latter require a TypeScript transform, which stops Node loading this
+  // module directly for tests.
+  readonly status: number;
+  readonly type?: string;
+
+  constructor(message: string, status: number, type?: string) {
     super(message);
     this.name = "ApiError";
+    this.status = status;
+    this.type = type;
   }
 }
 

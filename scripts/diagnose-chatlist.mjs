@@ -3,48 +3,16 @@
  * Follow-up diagnostic: why are recently-active chats absent from the
  * `sort: lastmessage` chat list, and is a message-derived list better?
  *
- * Usage:
- *   node scripts/diagnose-chatlist.mjs --url https://server --password PW
+ * Credentials come from .env.local (see .env.example), or --url/--password.
  *
  * Read-only.
  */
 
-const args = process.argv.slice(2);
-const arg = (n) => {
-  const i = args.indexOf(`--${n}`);
-  return i !== -1 ? args[i + 1] : undefined;
-};
+import { loadConfig, makeApi } from "./config.mjs";
 
-const SERVER = (arg("url") ?? process.env.BB_URL ?? "").replace(/\/+$/, "");
-const PASSWORD = arg("password") ?? process.env.BB_PASSWORD ?? "";
-
-if (!SERVER || !PASSWORD) {
-  console.error("node scripts/diagnose-chatlist.mjs --url https://server --password PW");
-  process.exit(1);
-}
-
-const origin = new URL(/^https?:\/\//.test(SERVER) ? SERVER : `https://${SERVER}`).origin;
-
-async function api(path, { method = "GET", query = {}, body } = {}) {
-  const url = new URL(`${origin}/api/v1${path}`);
-  url.searchParams.set("guid", PASSWORD);
-  for (const [k, v] of Object.entries(query)) {
-    if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
-  }
-  const res = await fetch(url, {
-    method,
-    headers: {
-      "ngrok-skip-browser-warning": "true",
-      skip_zrok_interstitial: "true",
-      ...(body ? { "Content-Type": "application/json" } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(60_000),
-  });
-  const json = JSON.parse(await res.text());
-  if (res.status !== 200) throw new Error(`${path}: ${res.status}`);
-  return json;
-}
+const config = loadConfig();
+const rawApi = makeApi(config);
+const api = async (path, opts) => (await rawApi(path, opts)).json;
 
 const ts = (ms) => (ms ? new Date(ms).toLocaleString() : "—");
 const startOfToday = new Date().setHours(0, 0, 0, 0);

@@ -1,6 +1,6 @@
 "use client";
 
-import { PanelLeft, PanelLeftClose } from "lucide-react";
+import { PanelLeft, PanelLeftClose, Pin, PinOff } from "lucide-react";
 import { useChat } from "@/hooks/use-queries";
 import { chatTitle, isGroup } from "@/lib/message-utils";
 import { conversationChat } from "@/lib/conversations";
@@ -8,7 +8,9 @@ import { Avatar } from "@/components/avatar";
 import { Composer } from "@/components/composer";
 import { MessageThread } from "@/components/message-thread";
 import { useNameResolver } from "@/hooks/use-contacts";
+import { cn } from "@/lib/utils";
 import { useUiStore } from "@/store/ui-store";
+import { usePinStore, MAX_PINS } from "@/store/pin-store";
 
 export function ChatView({ chatGuid }: { chatGuid: string }) {
   const conversation = useChat(chatGuid);
@@ -17,6 +19,10 @@ export function ChatView({ chatGuid }: { chatGuid: string }) {
 
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const togglePin = usePinStore((s) => s.toggle);
+  const isPinned = usePinStore((s) => s.pinned.includes(chatGuid));
+  const pinCount = usePinStore((s) => s.pinned.length);
+  const atPinLimit = !isPinned && pinCount >= MAX_PINS;
 
   return (
     <>
@@ -49,6 +55,32 @@ export function ChatView({ chatGuid }: { chatGuid: string }) {
             </span>
           ) : null}
         </div>
+
+        <button
+          type="button"
+          onClick={() => togglePin(chatGuid)}
+          disabled={atPinLimit}
+          aria-pressed={isPinned}
+          title={
+            atPinLimit
+              ? `Unpin another conversation first (limit ${MAX_PINS})`
+              : isPinned
+                ? "Unpin conversation"
+                : "Pin conversation"
+          }
+          aria-label={isPinned ? "Unpin conversation" : "Pin conversation"}
+          className={cn(
+            "ml-auto rounded-md p-1.5 hover:bg-surface-hover",
+            isPinned ? "text-accent" : "text-muted hover:text-foreground",
+            atPinLimit && "cursor-not-allowed opacity-40 hover:bg-transparent",
+          )}
+        >
+          {isPinned ? (
+            <PinOff className="size-4" aria-hidden />
+          ) : (
+            <Pin className="size-4" aria-hidden />
+          )}
+        </button>
       </header>
 
       <MessageThread chatGuid={chatGuid} />
