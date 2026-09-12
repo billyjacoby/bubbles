@@ -91,10 +91,15 @@ export function App({
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const selectedGuidRef = useRef<string | undefined>(undefined);
   const refreshingRef = useRef(false);
-  const [conversations, setConversations] = useState<Conversation[]>(() =>
+  const startingConversationsRef = useRef(
     deriveConversations(startingCache.feed),
   );
-  const [selected, setSelected] = useState(0);
+  const [conversations, setConversations] = useState<Conversation[]>(
+    startingConversationsRef.current,
+  );
+  const [selectedGuid, setSelectedGuid] = useState<string | undefined>(
+    startingConversationsRef.current[0]?.chat.guid,
+  );
   const [messages, setMessages] = useState<Message[]>([]);
   const [contacts, setContacts] = useState<ContactIndex>(() =>
     buildContactIndex(startingCache.contacts),
@@ -113,7 +118,13 @@ export function App({
     [contacts],
   );
 
-  const selectedConversation = conversations[selected];
+  const selected = Math.max(
+    0,
+    conversations.findIndex((conversation) => conversation.chat.guid === selectedGuid),
+  );
+  const selectedConversation = conversations.find(
+    (conversation) => conversation.chat.guid === selectedGuid,
+  );
   const selectedChat = selectedConversation
     ? conversationChat(selectedConversation)
     : undefined;
@@ -235,10 +246,14 @@ export function App({
   }, [connection, loadConversations, updateCache]);
 
   useEffect(() => {
-    if (selected >= conversations.length) {
-      setSelected(Math.max(0, conversations.length - 1));
+    if (conversations.length === 0) {
+      if (selectedGuid) setSelectedGuid(undefined);
+      return;
     }
-  }, [conversations.length, selected]);
+    if (!selectedGuid || !conversations.some(({ chat }) => chat.guid === selectedGuid)) {
+      setSelectedGuid(conversations[0].chat.guid);
+    }
+  }, [conversations, selectedGuid]);
 
   useEffect(() => {
     if (selectedChat) {
@@ -307,12 +322,12 @@ export function App({
     if (input === "q") return exit();
     if (input === "r") return void loadConversations(true);
     if (key.downArrow || input === "j") {
-      return setSelected((value) =>
-        Math.min(Math.max(0, conversations.length - 1), value + 1),
-      );
+      const next = Math.min(Math.max(0, conversations.length - 1), selected + 1);
+      return setSelectedGuid(conversations[next]?.chat.guid);
     }
     if (key.upArrow || input === "k") {
-      return setSelected((value) => Math.max(0, value - 1));
+      const next = Math.max(0, selected - 1);
+      return setSelectedGuid(conversations[next]?.chat.guid);
     }
     if ((key.return || key.tab || input === "i") && selectedChat) {
       setComposing(true);
@@ -347,16 +362,16 @@ export function App({
       <Box height={bodyHeight}>
         <Box
           width={sidebarWidth}
+          flexShrink={0}
           flexDirection="column"
           borderStyle="single"
           borderColor={composing ? MUTED : "cyan"}
           paddingX={1}
         >
           <Text bold>conversations {busy ? "…" : `(${conversations.length})`}</Text>
-          {conversations.slice(chatStart, chatStart + visibleChats).map((item, offset) => {
-            const index = chatStart + offset;
+          {conversations.slice(chatStart, chatStart + visibleChats).map((item) => {
             const chat = conversationChat(item);
-            const active = index === selected;
+            const active = chat.guid === selectedGuid;
             const label = chatTitle(chat, resolveName);
             return (
               <Text key={chat.guid} bold={active} color={active ? accent : undefined}>
