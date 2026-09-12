@@ -11705,6 +11705,35 @@ function lookupContact(index, address) {
   return void 0;
 }
 
+// ../../packages/shared/dist/conversations.js
+var activityOf = (message) => message.dateCreated ?? 0;
+function isRicher(candidate, current) {
+  const score = (c) => (c.participants?.length ? 2 : 0) + (c.displayName ? 1 : 0) + (c.style !== void 0 ? 1 : 0);
+  return score(candidate) > score(current);
+}
+function deriveConversations(messages) {
+  const byGuid = /* @__PURE__ */ new Map();
+  for (const message of messages) {
+    const chat = message.chats?.[0];
+    if (!chat?.guid)
+      continue;
+    const activity = activityOf(message);
+    const existing = byGuid.get(chat.guid);
+    if (!existing) {
+      byGuid.set(chat.guid, { chat, lastMessage: message, activity });
+      continue;
+    }
+    if (activity > existing.activity) {
+      existing.lastMessage = message;
+      existing.activity = activity;
+    }
+    if (isRicher(chat, existing.chat)) {
+      existing.chat = { ...chat, ...existing.chat, ...chat };
+    }
+  }
+  return [...byGuid.values()].sort((a, b) => b.activity - a.activity);
+}
+
 // ../../packages/shared/dist/format.js
 var TIME = new Intl.DateTimeFormat(void 0, {
   hour: "numeric",
@@ -15543,7 +15572,8 @@ var accept = (message, notify) => {
   const resolveName = (address) => lookupContact(contacts, address)?.name;
   const chat = message.chats?.[0];
   const sender = message.handle ? resolveName(message.handle.address) ?? message.handle.formattedAddress ?? message.handle.address : "New message";
-  const title = chat ? chatTitle(chat, resolveName) : sender;
+  const hydratedChat = chat?.guid ? deriveConversations(feed).find((conversation) => conversation.chat.guid === chat.guid)?.chat ?? chat : chat;
+  const title = hydratedChat ? chatTitle(hydratedChat, resolveName) : sender;
   launchNotification(title, notificationBody(message));
 };
 var polling = false;

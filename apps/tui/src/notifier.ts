@@ -5,6 +5,7 @@ import {
   chatTitle,
   connectSocket,
   deltaWindow,
+  deriveConversations,
   getContacts,
   isReaction,
   lookupContact,
@@ -103,7 +104,11 @@ const accept = (message: Message, notify: boolean) => {
       message.handle.formattedAddress ??
       message.handle.address
     : "New message";
-  const title = chat ? chatTitle(chat, resolveName) : sender;
+  const hydratedChat = chat?.guid
+    ? deriveConversations(feed).find((conversation) => conversation.chat.guid === chat.guid)
+        ?.chat ?? chat
+    : chat;
+  const title = hydratedChat ? chatTitle(hydratedChat, resolveName) : sender;
   launchNotification(title, notificationBody(message));
 };
 
