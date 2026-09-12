@@ -336,7 +336,7 @@ export function App({
 
   const columns = process.stdout.columns ?? 100;
   const rows = process.stdout.rows ?? 30;
-  const sidebarWidth = Math.max(32, Math.min(52, Math.floor(columns * 0.38)));
+  const sidebarWidth = Math.max(28, Math.min(46, Math.floor(columns * 0.34)));
   const bodyHeight = Math.max(8, rows - 6);
   const visibleChats = Math.max(3, bodyHeight - 3);
   const chatStart = Math.max(
@@ -344,7 +344,7 @@ export function App({
     Math.min(selected - Math.floor(visibleChats / 2), conversations.length - visibleChats),
   );
   const visibleMessages = useMemo(
-    () => messages.slice(-Math.max(3, Math.floor((bodyHeight - 2) / 2))),
+    () => messages.slice(-Math.max(1, Math.floor((bodyHeight - 3) / 3))),
     [bodyHeight, messages],
   );
   const service = selectedChat ? chatService(selectedChat) : null;
@@ -405,7 +405,7 @@ export function App({
               const senderColor = outgoing ? messageAccent : colorForName(senderKey);
               const time = formatTime(message.dateCreated).padStart(5);
               return (
-                <Box key={message.guid} flexDirection="column">
+                <Box key={message.guid} flexDirection="column" marginTop={1}>
                   <Box>
                     <Text color={MUTED}>{time} </Text>
                     <Text bold color={senderColor}>● {sender}</Text>
