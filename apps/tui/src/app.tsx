@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import {
   buildContactIndex,
@@ -7,6 +7,7 @@ import {
   connectSocket,
   conversationChat,
   deriveConversations,
+  deltaWindow,
   formatTime,
   getChatMessages,
   getContacts,
@@ -14,6 +15,7 @@ import {
   lookupContact,
   messageService,
   messageText,
+  queryMessagesSinceRowId,
   queryRecentMessages,
   resolveSendMethod,
   sendText,
@@ -22,10 +24,12 @@ import {
   type Conversation,
   type Message,
 } from "@bubbles/shared";
+import { emptyCache, saveCache, type TuiCache } from "./cache.js";
 
 const BLUE = "#5b8def";
 const GREEN = "#34c759";
 const MUTED = "#727a84";
+const CONTACT_CACHE_TTL = 24 * 60 * 60 * 1000;
 const PARTICIPANT_COLORS = [
   "#6fd3c8",
   "#f38ba8",
@@ -57,18 +61,52 @@ function colorForName(name: string): string {
   return PARTICIPANT_COLORS[hash % PARTICIPANT_COLORS.length];
 }
 
-export function App({ connection }: { connection: Connection }) {
+function mergeFeed(current: Message[], incoming: Message[]): Message[] {
+  const byGuid = new Map(current.map((message) => [message.guid, message]));
+  for (const message of incoming) {
+    const previous = byGuid.get(message.guid);
+    byGuid.set(message.guid, {
+      ...previous,
+      ...message,
+      chats: message.chats?.length ? message.chats : previous?.chats,
+    });
+  }
+  return [...byGuid.values()]
+    .sort((a, b) => (b.dateCreated ?? 0) - (a.dateCreated ?? 0))
+    .slice(0, 750);
+}
+
+export function App({
+  connection,
+  initialCache,
+}: {
+  connection: Connection;
+  initialCache?: TuiCache;
+}) {
   const { exit } = useApp();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const initialCacheRef = useRef(initialCache ?? emptyCache());
+  const startingCache = initialCacheRef.current;
+  const cacheRef = useRef(startingCache);
+  const feedRef = useRef(startingCache.feed);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const selectedGuidRef = useRef<string | undefined>(undefined);
+  const refreshingRef = useRef(false);
+  const [conversations, setConversations] = useState<Conversation[]>(() =>
+    deriveConversations(startingCache.feed),
+  );
   const [selected, setSelected] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [contacts, setContacts] = useState<ContactIndex>(new Map());
+  const [contacts, setContacts] = useState<ContactIndex>(() =>
+    buildContactIndex(startingCache.contacts),
+  );
   const [privateApi, setPrivateApi] = useState(false);
   const [draft, setDraft] = useState("");
   const [composing, setComposing] = useState(false);
-  const [busy, setBusy] = useState(true);
+  const [busy, setBusy] = useState(startingCache.feed.length === 0);
   const [connected, setConnected] = useState(false);
-  const [status, setStatus] = useState("connecting…");
+  const [status, setStatus] = useState(
+    startingCache.feed.length > 0 ? "cached · syncing…" : "connecting…",
+  );
 
   const resolveName = useCallback(
     (address: string) => lookupContact(contacts, address)?.name,
@@ -79,40 +117,122 @@ export function App({ connection }: { connection: Connection }) {
   const selectedChat = selectedConversation
     ? conversationChat(selectedConversation)
     : undefined;
+  selectedGuidRef.current = selectedChat?.guid;
 
-  const loadConversations = useCallback(async () => {
+  const updateCache = useCallback(
+    (update: (current: TuiCache) => TuiCache) => {
+      const next = update(cacheRef.current);
+      cacheRef.current = next;
+      saveQueueRef.current = saveQueueRef.current
+        .catch(() => undefined)
+        .then(() => saveCache(connection, next))
+        .catch(() => undefined);
+    },
+    [connection],
+  );
+
+  const acceptFeed = useCallback(
+    (incoming: Message[], replace = false) => {
+      const next = replace
+        ? [...incoming]
+            .sort((a, b) => (b.dateCreated ?? 0) - (a.dateCreated ?? 0))
+            .slice(0, 750)
+        : mergeFeed(feedRef.current, incoming);
+      feedRef.current = next;
+      setConversations(deriveConversations(next));
+      updateCache((cache) => ({ ...cache, feed: next }));
+    },
+    [updateCache],
+  );
+
+  const loadConversations = useCallback(async (forceFull = false) => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
     try {
-      const feed = await queryRecentMessages(connection, { limit: 750 });
-      setConversations(deriveConversations(feed));
-      setStatus("synced");
+      const window = forceFull ? { kind: "none" as const } : deltaWindow(feedRef.current);
+      let incoming: Message[] = [];
+      const replace = forceFull || window.kind === "none";
+
+      if (window.kind === "rowId") {
+        let offset = 0;
+        let page: Message[];
+        do {
+          page = await queryMessagesSinceRowId(connection, window.startRowId, {
+            offset,
+            limit: 500,
+          });
+          incoming.push(...page);
+          offset += page.length;
+        } while (page.length === 500 && offset < 5000);
+      } else if (window.kind === "timestamp") {
+        incoming = await queryRecentMessages(connection, {
+          after: window.after,
+          limit: 750,
+        });
+      } else {
+        incoming = await queryRecentMessages(connection, { limit: 750 });
+      }
+
+      acceptFeed(incoming, replace);
+      setStatus(incoming.length > 0 ? `synced · ${incoming.length} new` : "up to date");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "refresh failed");
+      setStatus(
+        feedRef.current.length > 0
+          ? "cached · refresh failed"
+          : error instanceof Error
+            ? error.message
+            : "refresh failed",
+      );
     } finally {
       setBusy(false);
+      refreshingRef.current = false;
     }
-  }, [connection]);
+  }, [acceptFeed, connection]);
 
   const loadThread = useCallback(
     async (guid: string) => {
       try {
         const next = await getChatMessages(connection, guid, { limit: 100 });
-        setMessages([...next].sort((a, b) => (a.dateCreated ?? 0) - (b.dateCreated ?? 0)));
+        const sorted = [...next].sort(
+          (a, b) => (a.dateCreated ?? 0) - (b.dateCreated ?? 0),
+        );
+        if (selectedGuidRef.current === guid) setMessages(sorted);
+        updateCache((cache) => {
+          const retained = Object.fromEntries(
+            Object.entries(cache.threads)
+              .filter(([key]) => key !== guid)
+              .slice(-29),
+          );
+          return { ...cache, threads: { ...retained, [guid]: sorted } };
+        });
       } catch (error) {
         setStatus(error instanceof Error ? error.message : "thread failed");
       }
     },
-    [connection],
+    [connection, updateCache],
   );
 
   useEffect(() => {
     void loadConversations();
-    void getContacts(connection)
-      .then((items) => setContacts(buildContactIndex(items)))
-      .catch(() => undefined);
+    if (
+      startingCache.contacts.length === 0 ||
+      Date.now() - startingCache.contactsUpdatedAt > CONTACT_CACHE_TTL
+    ) {
+      void getContacts(connection)
+        .then((items) => {
+          setContacts(buildContactIndex(items));
+          updateCache((cache) => ({
+            ...cache,
+            contacts: items,
+            contactsUpdatedAt: Date.now(),
+          }));
+        })
+        .catch(() => undefined);
+    }
     void getServerInfo(connection)
       .then((info) => setPrivateApi(Boolean(info.private_api && info.helper_connected)))
       .catch(() => undefined);
-  }, [connection, loadConversations]);
+  }, [connection, loadConversations, updateCache]);
 
   useEffect(() => {
     if (selected >= conversations.length) {
@@ -121,8 +241,10 @@ export function App({ connection }: { connection: Connection }) {
   }, [conversations.length, selected]);
 
   useEffect(() => {
-    if (selectedChat) void loadThread(selectedChat.guid);
-    else setMessages([]);
+    if (selectedChat) {
+      setMessages(cacheRef.current.threads[selectedChat.guid] ?? []);
+      void loadThread(selectedChat.guid);
+    } else setMessages([]);
   }, [loadThread, selectedChat?.guid]);
 
   useEffect(() => {
@@ -130,22 +252,23 @@ export function App({ connection }: { connection: Connection }) {
     const socket = connectSocket(connection, {
       onConnectionChange: setConnected,
       onNewMessage: (message) => {
-        void loadConversations();
+        acceptFeed([message]);
         if (activeGuid && message.chats?.some((chat) => chat.guid === activeGuid)) {
           void loadThread(activeGuid);
         }
       },
       onUpdatedMessage: (message) => {
+        acceptFeed([message]);
         if (activeGuid && message.chats?.some((chat) => chat.guid === activeGuid)) {
           void loadThread(activeGuid);
         }
       },
-      onChatsChanged: () => void loadConversations(),
+      onChatsChanged: () => void loadConversations(true),
     });
     return () => {
       socket.disconnect();
     };
-  }, [connection, loadConversations, loadThread, selectedChat?.guid]);
+  }, [acceptFeed, connection, loadConversations, loadThread, selectedChat?.guid]);
 
   const send = useCallback(async () => {
     const body = draft.trim();
@@ -182,7 +305,7 @@ export function App({ connection }: { connection: Connection }) {
     }
 
     if (input === "q") return exit();
-    if (input === "r") return void loadConversations();
+    if (input === "r") return void loadConversations(true);
     if (key.downArrow || input === "j") {
       return setSelected((value) =>
         Math.min(Math.max(0, conversations.length - 1), value + 1),
@@ -198,7 +321,7 @@ export function App({ connection }: { connection: Connection }) {
 
   const columns = process.stdout.columns ?? 100;
   const rows = process.stdout.rows ?? 30;
-  const sidebarWidth = Math.max(24, Math.min(42, Math.floor(columns * 0.32)));
+  const sidebarWidth = Math.max(32, Math.min(52, Math.floor(columns * 0.38)));
   const bodyHeight = Math.max(8, rows - 6);
   const visibleChats = Math.max(3, bodyHeight - 3);
   const chatStart = Math.max(

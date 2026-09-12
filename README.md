@@ -67,6 +67,13 @@ compose, `Escape` to return to navigation, `r` to refresh, and `q` to quit.
 Incoming messages update over Socket.IO. Outgoing iMessages render blue and SMS
 messages green, matching the web client.
 
+The TUI caches its conversation feed, contacts, and recently opened threads in
+the same platform user-config directory as its credentials. Cached content
+renders immediately on launch, then a row-ID delta sync fetches only unseen
+messages. Pressing `r` deliberately performs a full refresh. Cache files are
+scoped to a hash of the active connection and written with owner-only
+permissions; the password itself is never stored in the cache.
+
 ## Layout
 
 ```

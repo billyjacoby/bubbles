@@ -2,6 +2,7 @@
 import React from "react";
 import { render } from "ink";
 import { HELP, parseCli, resolveConnection } from "./cli.js";
+import { loadCache } from "./cache.js";
 import { loadConnection } from "./config.js";
 import { Root } from "./root.js";
 
@@ -19,9 +20,14 @@ if (options.help) {
 } else {
   const saved = await loadConnection();
   const candidate = resolveConnection(options, saved);
+  const initialConnection = options.setup ? undefined : candidate;
+  const initialCache = initialConnection
+    ? await loadCache(initialConnection)
+    : undefined;
   render(
     <Root
-      initialConnection={options.setup ? undefined : candidate}
+      initialConnection={initialConnection}
+      initialCache={initialCache}
       onboardingDefaults={candidate}
     />,
   );
