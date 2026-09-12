@@ -335,6 +335,12 @@ export function App({
 
     if (input === "q") return exit();
     if (input === "r") return void loadConversations(true);
+    if (key.leftArrow || input === "h") {
+      return setFocusedPane("conversations");
+    }
+    if ((key.rightArrow || input === "l") && selectedChat) {
+      return setFocusedPane("messages");
+    }
     if (key.tab && selectedChat) {
       return setFocusedPane((pane) =>
         pane === "conversations" ? "messages" : "conversations",
@@ -490,7 +496,7 @@ export function App({
         <Text>{draft}</Text>
         {composing && <Text inverse> </Text>}
       </Box>
-      <Text color={MUTED}> tab switch pane · ↑↓/jk navigate · enter/i compose · r refresh · q quit</Text>
+      <Text color={MUTED}> tab/←→/hl switch · ↑↓/jk navigate · enter/i compose · r refresh · q quit</Text>
     </Box>
   );
 }

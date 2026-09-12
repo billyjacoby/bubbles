@@ -59,8 +59,9 @@ Environment:
   BLUEBUBBLES_PASSWORD  BlueBubbles server password
 
 Keys:
-  tab            switch chats/messages  j/k or arrows  navigate active pane
-  enter/i        compose                 esc            leave composer
-  r              refresh                 q              quit
+  tab or h/l     switch chats/messages  j/k or arrows  navigate active pane
+  left/right     switch chats/messages  enter/i        compose
+  esc            leave composer         r              refresh
+  q              quit
   ctrl+c         quit
 `;
