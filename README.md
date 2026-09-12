@@ -80,6 +80,12 @@ arguments to integrate another desktop shell. A 10-second incremental sync
 backs up the live Socket.IO connection so brief disconnects do not leave the
 conversation list stale.
 
+Omarchy users can install the repository as a native shell plugin with
+`omarchy plugin add https://github.com/billyjacoby/bubbles.git --enable`. The
+plugin owns the background listener, integrates notifications with the shell,
+and adds a bar launcher that focuses an existing TUI window. See
+[`apps/omarchy/README.md`](apps/omarchy/README.md) for details.
+
 The TUI caches its conversation feed, contacts, and recently opened threads in
 the same platform user-config directory as its credentials. Cached content
 renders immediately on launch, then a row-ID delta sync fetches only unseen

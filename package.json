@@ -8,11 +8,11 @@
     "dev": "pnpm dev:web",
     "dev:web": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/web dev",
     "dev:tui": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/tui dev",
-    "build": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/web build && pnpm --filter @bubbles/tui build",
+    "build": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/web build && pnpm --filter @bubbles/tui build && pnpm --filter @bubbles/omarchy build",
     "start": "pnpm --filter @bubbles/web start",
     "tui": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/tui start",
     "notify": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/tui notify",
-    "lint": "pnpm --filter @bubbles/shared lint && pnpm --filter @bubbles/web lint && pnpm --filter @bubbles/tui lint",
+    "lint": "pnpm --filter @bubbles/shared lint && pnpm --filter @bubbles/web lint && pnpm --filter @bubbles/tui lint && pnpm --filter @bubbles/omarchy lint",
     "verify": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/web verify",
     "diagnose": "pnpm --filter @bubbles/web diagnose",
     "diagnose:chatlist": "pnpm --filter @bubbles/web diagnose:chatlist"

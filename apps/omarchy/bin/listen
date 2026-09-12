@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+plugin_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+export BUBBLES_NOTIFICATION_COMMAND="$plugin_dir/bin/notify"
+
+exec node "$plugin_dir/dist/notifier.mjs"

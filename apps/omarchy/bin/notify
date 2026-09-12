@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+plugin_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+title=${1:-Bubbles}
+body=${2:-New message}
+
+exec omarchy notification send \
+  --app-name Bubbles \
+  --urgency normal \
+  "$title" \
+  "$body" \
+  --exec "$plugin_dir/bin/open"

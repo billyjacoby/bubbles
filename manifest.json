@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "billyjacoby.bubbles",
+  "name": "Bubbles",
+  "version": "0.1.0",
+  "author": "Billy Jacoby",
+  "description": "A terminal BlueBubbles client with native Omarchy notifications.",
+  "kinds": ["service", "bar-widget"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "apps/omarchy/Service.qml",
+    "barWidget": "apps/omarchy/BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Bubbles",
+    "description": "Shows message listener status and opens or focuses the Bubbles TUI.",
+    "category": "Communication",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+plugin_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+window_address=$(hyprctl clients -j | jq -r '
+  map(select(
+    .class == "bubbles-tui"
+    or .initialClass == "bubbles-tui"
+    or .title == "Bubbles"
+  ))
+  | first
+  | .address // empty
+')
+
+if [[ $window_address =~ ^0x[0-9a-fA-F]+$ ]]; then
+  exec hyprctl eval \
+    "hl.dispatch(hl.dsp.focus({ window = \"address:$window_address\" }))"
+fi
+
+exec xdg-terminal-exec \
+  --app-id=bubbles-tui \
+  --title=Bubbles \
+  --dir="$plugin_dir" \
+  -- node "$plugin_dir/dist/tui.mjs"

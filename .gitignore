@@ -20,6 +20,8 @@
 # production
 /build
 **/dist/
+!apps/omarchy/dist/
+!apps/omarchy/dist/*.mjs
 
 # misc
 .DS_Store
