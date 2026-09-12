@@ -8,7 +8,6 @@ import {
   connectSocket,
   conversationChat,
   deriveConversations,
-  formatListTimestamp,
   formatTime,
   getChatMessages,
   getContacts,
@@ -28,6 +27,14 @@ import {
 const BLUE = "#5b8def";
 const GREEN = "#34c759";
 const MUTED = "#727a84";
+const PARTICIPANT_COLORS = [
+  "#6fd3c8",
+  "#f38ba8",
+  "#f9c97c",
+  "#c6a0f6",
+  "#91d7e3",
+  "#a6da95",
+] as const;
 
 function clip(value: string, width: number): string {
   if (width <= 0) return "";
@@ -41,6 +48,14 @@ function displayText(message: Message): string {
   if (text) return text.replace(/\s+/g, " ");
   if (message.hasAttachments) return "[attachment]";
   return "[empty message]";
+}
+
+function colorForName(name: string): string {
+  let hash = 0;
+  for (const character of name) {
+    hash = (hash * 31 + character.codePointAt(0)!) >>> 0;
+  }
+  return PARTICIPANT_COLORS[hash % PARTICIPANT_COLORS.length];
 }
 
 export function App({ connection }: { connection: Connection }) {
@@ -186,13 +201,13 @@ export function App({ connection }: { connection: Connection }) {
   const rows = process.stdout.rows ?? 30;
   const sidebarWidth = Math.max(24, Math.min(42, Math.floor(columns * 0.32)));
   const bodyHeight = Math.max(8, rows - 6);
-  const visibleChats = Math.max(3, bodyHeight - 2);
+  const visibleChats = Math.max(3, Math.floor((bodyHeight - 2) / 2));
   const chatStart = Math.max(
     0,
     Math.min(selected - Math.floor(visibleChats / 2), conversations.length - visibleChats),
   );
   const visibleMessages = useMemo(
-    () => messages.slice(-Math.max(3, bodyHeight - 2)),
+    () => messages.slice(-Math.max(3, Math.floor((bodyHeight - 2) / 2))),
     [bodyHeight, messages],
   );
   const service = selectedChat ? chatService(selectedChat) : null;
@@ -221,14 +236,16 @@ export function App({ connection }: { connection: Connection }) {
             const chat = conversationChat(item);
             const active = index === selected;
             const label = chatTitle(chat, resolveName);
-            const timestamp = formatListTimestamp(item.activity);
-            const room = sidebarWidth - timestamp.length - 7;
+            const labelColor = active ? accent : colorForName(chat.guid);
             return (
               <Box key={chat.guid} flexDirection="column">
-                <Text bold={active} inverse={active} color={active ? accent : undefined}>
-                  {active ? "› " : "  "}{clip(label, room)} {timestamp}
-                </Text>
-                <Text color={MUTED}>  {clip(chatPreview(chat, resolveName), sidebarWidth - 6)}</Text>
+                <Box>
+                  <Text color={labelColor}>{active ? "●" : " "}</Text>
+                  <Text bold={active} color={labelColor}>
+                    {` ${clip(label, sidebarWidth - 8)}`}
+                  </Text>
+                </Box>
+                <Text color={MUTED}>    {clip(chatPreview(chat, resolveName), sidebarWidth - 8)}</Text>
               </Box>
             );
           })}
@@ -250,16 +267,24 @@ export function App({ connection }: { connection: Connection }) {
               const outgoing = message.isFromMe;
               const messageAccent = messageService(message) === "SMS" ? GREEN : BLUE;
               const sender = outgoing
-                ? "you"
+                ? "YOU"
                 : message.handle
                   ? resolveName(message.handle.address) ?? message.handle.formattedAddress ?? message.handle.address
                   : "them";
+              const senderKey = outgoing ? "you" : message.handle?.address ?? sender;
+              const senderColor = outgoing ? messageAccent : colorForName(senderKey);
+              const time = formatTime(message.dateCreated).padStart(5);
               return (
-                <Box key={message.guid} justifyContent={outgoing ? "flex-end" : "flex-start"}>
-                  <Text color={outgoing ? messageAccent : undefined}>
-                    {outgoing ? `${displayText(message)}  ›` : `‹ ${sender}: ${displayText(message)}`}
-                    <Text color={MUTED}> {formatTime(message.dateCreated)}</Text>
-                  </Text>
+                <Box key={message.guid} flexDirection="column">
+                  <Box>
+                    <Text color={MUTED}>{time} </Text>
+                    <Text bold color={senderColor}>● {sender}</Text>
+                    <Text color={senderColor}> {outgoing ? "›" : "‹"}</Text>
+                  </Box>
+                  <Box>
+                    <Text color={senderColor}>      │ </Text>
+                    <Text>{displayText(message)}</Text>
+                  </Box>
                 </Box>
               );
             })}
