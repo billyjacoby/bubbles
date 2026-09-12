@@ -413,16 +413,16 @@ export function App({
                   marginTop={1}
                 >
                   <Box width="85%" flexDirection="column">
-                    <Box justifyContent="space-between">
+                    <Box justifyContent={outgoing ? "flex-end" : "flex-start"}>
                       {outgoing ? (
                         <>
-                          <Text color={MUTED}>{time}</Text>
-                          <Text bold color={senderColor}>› {sender} ●</Text>
+                          <Text color={MUTED}>{time} </Text>
+                          <Text bold color={senderColor}>{sender} ●</Text>
                         </>
                       ) : (
                         <>
-                          <Text bold color={senderColor}>● {sender} ‹</Text>
-                          <Text color={MUTED}>{time}</Text>
+                          <Text bold color={senderColor}>● {sender}</Text>
+                          <Text color={MUTED}> {time}</Text>
                         </>
                       )}
                     </Box>
