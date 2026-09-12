@@ -407,32 +407,38 @@ export function App({
               const senderColor = outgoing ? messageAccent : colorForName(senderKey);
               const time = formatTime(message.dateCreated);
               return (
-                <Box key={message.guid} flexDirection="column" marginTop={1}>
-                  <Box justifyContent="space-between">
-                    {outgoing ? (
-                      <>
-                        <Text color={MUTED}>{time}</Text>
-                        <Text bold color={senderColor}>› {sender} ●</Text>
-                      </>
-                    ) : (
-                      <>
-                        <Text bold color={senderColor}>● {sender} ‹</Text>
-                        <Text color={MUTED}>{time}</Text>
-                      </>
-                    )}
-                  </Box>
-                  <Box justifyContent={outgoing ? "flex-end" : "flex-start"}>
-                    {outgoing ? (
-                      <>
-                        <Text>{displayText(message)}</Text>
-                        <Text color={senderColor}> │</Text>
-                      </>
-                    ) : (
-                      <>
-                        <Text color={senderColor}>│ </Text>
-                        <Text>{displayText(message)}</Text>
-                      </>
-                    )}
+                <Box
+                  key={message.guid}
+                  justifyContent={outgoing ? "flex-end" : "flex-start"}
+                  marginTop={1}
+                >
+                  <Box width="85%" flexDirection="column">
+                    <Box justifyContent="space-between">
+                      {outgoing ? (
+                        <>
+                          <Text color={MUTED}>{time}</Text>
+                          <Text bold color={senderColor}>› {sender} ●</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text bold color={senderColor}>● {sender} ‹</Text>
+                          <Text color={MUTED}>{time}</Text>
+                        </>
+                      )}
+                    </Box>
+                    <Box justifyContent={outgoing ? "flex-end" : "flex-start"}>
+                      {outgoing ? (
+                        <>
+                          <Text>{displayText(message)}</Text>
+                          <Text color={senderColor}> │</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text color={senderColor}>│ </Text>
+                          <Text>{displayText(message)}</Text>
+                        </>
+                      )}
+                    </Box>
                   </Box>
                 </Box>
               );
