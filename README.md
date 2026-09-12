@@ -32,7 +32,7 @@ route handlers: every outbound call already funnels through
 change.
 
 The password is stored in an httpOnly cookie and read by a server component
-(`app/web/src/app/chats/layout.tsx`), which hands it to the client via
+(`apps/web/src/app/chats/layout.tsx`), which hands it to the client via
 `ConnectionProvider`. It never touches `localStorage`. Because the browser calls
 the server directly, the password does exist in client memory — that is inherent
 to this transport choice, not an oversight.
@@ -70,7 +70,7 @@ messages green, matching the web client.
 ## Layout
 
 ```
-app/
+apps/
   web/
     src/app/
     api/session/route.ts    Validate credentials, set/clear the session cookie
@@ -102,18 +102,18 @@ monospace treatment; the other themes retain the standard interface typography.
 
 ## Installing as a PWA
 
-The app ships a web manifest (`app/web/src/app/manifest.ts`), icons, and a service
+The app ships a web manifest (`apps/web/src/app/manifest.ts`), icons, and a service
 worker, so it installs as a standalone desktop app. Install from the browser's
 address bar; it opens in its own window at `/chats`.
 
-The service worker (`app/web/public/sw.js`) is deliberately narrow — **app shell and
+The service worker (`apps/web/public/sw.js`) is deliberately narrow — **app shell and
 static assets only**. Message data is already cached in IndexedDB by React
 Query, and caching it twice would risk serving a stale conversation from a layer
 that knows nothing about the sync watermark. It never touches cross-origin
 requests (your BlueBubbles server) or `/api/*` (session credentials).
 
 It registers in production builds only; in development a cached shell masks code
-changes. Bump `VERSION` in `app/web/public/sw.js` to force old caches out.
+changes. Bump `VERSION` in `apps/web/public/sw.js` to force old caches out.
 
 Icons are generated procedurally, with no image-library dependency:
 
@@ -141,7 +141,7 @@ pinned chat appears in one place, never both. Capped at nine, as Messages is.
 - Searching hides the grid and searches across both sections, so a pinned chat
   is still findable by name.
 
-Pins live in `localStorage` (`app/web/src/store/pin-store.ts`) and are **per browser
+Pins live in `localStorage` (`apps/web/src/store/pin-store.ts`) and are **per browser
 profile, not per account** — the server has no concept of them. `/chat/query`
 returns no `isPinned` field and there is no endpoint to set one; the official
 client keeps pins in its own local database too.
@@ -156,7 +156,7 @@ The app is built to be installed as a desktop PWA, so a cold start must not
 refetch the world.
 
 **The cache is persisted to IndexedDB.** The whole React Query cache is
-dehydrated into IndexedDB (`app/web/src/lib/persister.ts`) and restored on load, so a
+dehydrated into IndexedDB (`apps/web/src/lib/persister.ts`) and restored on load, so a
 reload paints from cache immediately. IndexedDB rather than localStorage: a
 conversation window plus contact avatars runs to several megabytes, past
 localStorage's ~5MB ceiling, and structured clones avoid a JSON round-trip on
@@ -168,7 +168,7 @@ from the next write to disk, so `gcTime` must outlive what you want persisted.
 Freshness comes from two places instead: the socket while connected, and a delta
 sync on load.
 
-**Delta sync is row-ID based.** `app/web/src/hooks/use-delta-sync.ts` reads the highest
+**Delta sync is row-ID based.** `apps/web/src/hooks/use-delta-sync.ts` reads the highest
 row ID in the cached feed and asks only for messages above it, using the raw-SQL
 `where` clause the server exposes on `/message/query`. Row ID rather than a
 timestamp because it is monotonic: messages sharing a millisecond cannot be
@@ -191,7 +191,7 @@ Cold start, in order:
 2. Delta sync pulls messages above the cached row ID.
 3. The socket connects and takes over live updates.
 
-Bump `CACHE_BUSTER` in `app/web/src/lib/persister.ts` when the cached shape changes
+Bump `CACHE_BUSTER` in `apps/web/src/lib/persister.ts` when the cached shape changes
 incompatibly; a mismatched buster discards the stored cache.
 
 ### Known gaps
@@ -232,7 +232,7 @@ Consequences worth knowing:
 - Sidebar search covers loaded conversations only, which is why the placeholder
   says so. Server-side search would need a different endpoint.
 - `hasUnreadMessage` on chat records embedded in messages goes stale, so unread
-  state is tracked in `app/web/src/store/ui-store.ts` from first-hand signals (opening a
+  state is tracked in `apps/web/src/store/ui-store.ts` from first-hand signals (opening a
   chat, read-status events, incoming messages) and takes precedence.
 
 `queryChats()` is still available for single-chat metadata and counts, and
@@ -255,7 +255,7 @@ address book, names alone are 0.2MB in ~300ms while fetching every photo is
 8.7MB in ~3.2s — about 40x the payload for avatars that exist on 11% of
 contacts, and that cost would be re-paid on every write of the persisted cache.
 
-Photos are instead fetched **per contact, on demand**. `app/web/src/lib/avatar-loader.ts`
+Photos are instead fetched **per contact, on demand**. `apps/web/src/lib/avatar-loader.ts`
 coalesces every avatar requested within 50ms into a single `/contact/query`
 (max 20 addresses), and each address is cached and persisted separately so a
 photo is fetched once and then survives reloads. Requests only fire for

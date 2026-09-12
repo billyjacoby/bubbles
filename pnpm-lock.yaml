@@ -8,7 +8,7 @@ importers:
 
   .: {}
 
-  app/tui:
+  apps/tui:
     dependencies:
       '@bubbles/shared':
         specifier: workspace:*
@@ -33,7 +33,7 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  app/web:
+  apps/web:
     dependencies:
       '@bubbles/shared':
         specifier: workspace:*

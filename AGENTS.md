@@ -15,9 +15,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Bubbles is a monorepo containing web and terminal BlueBubbles clients.
   Shared data models, REST calls, socket handling, and pure domain logic live
   in `packages/shared`; client-specific state and presentation stay isolated.
-- The installable PWA lives in `app/web`. The browser talks directly to the
+- The installable PWA lives in `apps/web`. The browser talks directly to the
   configured BlueBubbles REST API and Socket.IO endpoint.
-- The Ink terminal client lives in `app/tui` and talks directly to the same
+- The Ink terminal client lives in `apps/tui` and talks directly to the same
   endpoints. Keep it portable across ordinary Node.js terminals; do not bake
   Omarchy or machine-specific assumptions into it.
 - The Next.js server validates and stores connection credentials in an httpOnly
@@ -39,7 +39,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 - Preserve the direct API boundary in `packages/shared/src/api/`, realtime
   handling in `packages/shared/src/socket.ts`, React Query/IndexedDB data cache,
-  and Zustand UI state in `app/web`
+  and Zustand UI state in `apps/web`
   unless a requested change requires modifying them.
 - Run focused checks for the changed behavior, `pnpm lint`, and `pnpm build`.
   Run `pnpm verify` when conversation, contact, or sync invariants are affected.
