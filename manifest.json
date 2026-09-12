@@ -4,6 +4,7 @@
   "name": "Bubbles",
   "version": "0.1.0",
   "author": "Billy Jacoby",
+  "license": "AGPL-3.0-only",
   "description": "A terminal BlueBubbles client with native Omarchy notifications.",
   "kinds": ["service", "bar-widget"],
   "keepLoaded": true,

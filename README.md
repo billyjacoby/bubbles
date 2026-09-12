@@ -356,3 +356,7 @@ Installable as a desktop PWA with offline shell and persisted cache.
 Not yet built: attachment upload, sending tapbacks/effects/mentions from the UI,
 group management, FaceTime, scheduled messages, server-side search, push
 notifications.
+
+## License
+
+Bubbles is licensed under the [GNU Affero General Public License v3.0](LICENSE).
