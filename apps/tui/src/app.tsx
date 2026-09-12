@@ -338,7 +338,7 @@ export function App({
   const rows = process.stdout.rows ?? 30;
   const sidebarWidth = Math.max(28, Math.min(46, Math.floor(columns * 0.34)));
   const bodyHeight = Math.max(8, rows - 6);
-  const visibleChats = Math.max(3, bodyHeight - 3);
+  const visibleChats = Math.max(1, Math.floor((bodyHeight - 3) / 2));
   const chatStart = Math.max(
     0,
     Math.min(selected - Math.floor(visibleChats / 2), conversations.length - visibleChats),
@@ -374,9 +374,11 @@ export function App({
             const active = chat.guid === selectedGuid;
             const label = chatTitle(chat, resolveName);
             return (
-              <Text key={chat.guid} bold={active} color={active ? accent : undefined}>
-                {active ? "› " : "  "}{clip(label, sidebarWidth - 6)}
-              </Text>
+              <Box key={chat.guid} marginTop={1}>
+                <Text bold={active} color={active ? accent : undefined}>
+                  {active ? "› " : "  "}{clip(label, sidebarWidth - 6)}
+                </Text>
+              </Box>
             );
           })}
         </Box>
@@ -403,17 +405,34 @@ export function App({
                   : "them";
               const senderKey = outgoing ? "you" : message.handle?.address ?? sender;
               const senderColor = outgoing ? messageAccent : colorForName(senderKey);
-              const time = formatTime(message.dateCreated).padStart(5);
+              const time = formatTime(message.dateCreated);
               return (
                 <Box key={message.guid} flexDirection="column" marginTop={1}>
-                  <Box>
-                    <Text color={MUTED}>{time} </Text>
-                    <Text bold color={senderColor}>● {sender}</Text>
-                    <Text color={senderColor}> {outgoing ? "›" : "‹"}</Text>
+                  <Box justifyContent="space-between">
+                    {outgoing ? (
+                      <>
+                        <Text color={MUTED}>{time}</Text>
+                        <Text bold color={senderColor}>› {sender} ●</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Text bold color={senderColor}>● {sender} ‹</Text>
+                        <Text color={MUTED}>{time}</Text>
+                      </>
+                    )}
                   </Box>
-                  <Box>
-                    <Text color={senderColor}>      │ </Text>
-                    <Text>{displayText(message)}</Text>
+                  <Box justifyContent={outgoing ? "flex-end" : "flex-start"}>
+                    {outgoing ? (
+                      <>
+                        <Text>{displayText(message)}</Text>
+                        <Text color={senderColor}> │</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Text color={senderColor}>│ </Text>
+                        <Text>{displayText(message)}</Text>
+                      </>
+                    )}
                   </Box>
                 </Box>
               );
