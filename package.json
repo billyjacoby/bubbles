@@ -11,6 +11,7 @@
     "build": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/web build && pnpm --filter @bubbles/tui build",
     "start": "pnpm --filter @bubbles/web start",
     "tui": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/tui start",
+    "notify": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/tui notify",
     "lint": "pnpm --filter @bubbles/shared lint && pnpm --filter @bubbles/web lint && pnpm --filter @bubbles/tui lint",
     "verify": "pnpm --filter @bubbles/shared build && pnpm --filter @bubbles/web verify",
     "diagnose": "pnpm --filter @bubbles/web diagnose",

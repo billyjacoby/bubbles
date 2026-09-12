@@ -72,6 +72,14 @@ mouse wheel over either pane to navigate its list.
 Incoming messages update over Socket.IO. Outgoing iMessages render blue and SMS
 messages green, matching the web client.
 
+For desktop notifications, `pnpm notify` runs a lightweight background client
+that listens for incoming messages and uses the platform notification command.
+On Linux it uses `notify-send`; set `BUBBLES_NOTIFICATION_COMMAND` to an
+executable that accepts the notification title and body as its first two
+arguments to integrate another desktop shell. A 10-second incremental sync
+backs up the live Socket.IO connection so brief disconnects do not leave the
+conversation list stale.
+
 The TUI caches its conversation feed, contacts, and recently opened threads in
 the same platform user-config directory as its credentials. Cached content
 renders immediately on launch, then a row-ID delta sync fetches only unseen

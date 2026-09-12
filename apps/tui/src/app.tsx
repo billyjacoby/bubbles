@@ -78,6 +78,17 @@ function mergeFeed(current: Message[], incoming: Message[]): Message[] {
     .slice(0, 750);
 }
 
+function mergeThread(current: Message[], incoming: Message[]): Message[] {
+  const byGuid = new Map(current.map((message) => [message.guid, message]));
+  for (const message of incoming) {
+    const previous = byGuid.get(message.guid);
+    byGuid.set(message.guid, { ...previous, ...message });
+  }
+  return [...byGuid.values()].sort(
+    (a, b) => (a.dateCreated ?? 0) - (b.dateCreated ?? 0),
+  );
+}
+
 export function App({
   connection,
   initialCache,
@@ -90,9 +101,15 @@ export function App({
   const startingCache = initialCacheRef.current;
   const cacheRef = useRef(startingCache);
   const feedRef = useRef(startingCache.feed);
+  // Socket events update the visible feed immediately, but only REST results
+  // advance the sync watermark. This prevents one delivered socket event from
+  // hiding an earlier event that was missed during a disconnect.
+  const syncedFeedRef = useRef(startingCache.feed);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const selectedGuidRef = useRef<string | undefined>(undefined);
   const refreshingRef = useRef(false);
+  const refreshQueuedRef = useRef(false);
+  const forceRefreshQueuedRef = useRef(false);
   const startingConversationsRef = useRef(
     deriveConversations(startingCache.feed),
   );
@@ -154,41 +171,81 @@ export function App({
         : mergeFeed(feedRef.current, incoming);
       feedRef.current = next;
       setConversations(deriveConversations(next));
-      updateCache((cache) => ({ ...cache, feed: next }));
+      const activeGuid = selectedGuidRef.current;
+      const byChat = new Map<string, Message[]>();
+      for (const message of incoming) {
+        for (const chat of message.chats ?? []) {
+          const group = byChat.get(chat.guid) ?? [];
+          group.push(message);
+          byChat.set(chat.guid, group);
+        }
+      }
+
+      const activeMessages = activeGuid ? byChat.get(activeGuid) : undefined;
+      if (activeMessages?.length) {
+        setMessages((current) => mergeThread(current, activeMessages));
+      }
+
+      updateCache((cache) => {
+        const threads = { ...cache.threads };
+        for (const [guid, chatMessages] of byChat) {
+          if (threads[guid] || guid === activeGuid) {
+            threads[guid] = mergeThread(threads[guid] ?? [], chatMessages);
+          }
+        }
+        return { ...cache, feed: next, threads };
+      });
     },
     [updateCache],
   );
 
   const loadConversations = useCallback(async (forceFull = false) => {
-    if (refreshingRef.current) return;
+    if (refreshingRef.current) {
+      refreshQueuedRef.current = true;
+      forceRefreshQueuedRef.current ||= forceFull;
+      return;
+    }
     refreshingRef.current = true;
     try {
-      const window = forceFull ? { kind: "none" as const } : deltaWindow(feedRef.current);
-      let incoming: Message[] = [];
-      const replace = forceFull || window.kind === "none";
+      let nextForceFull = forceFull;
+      do {
+        refreshQueuedRef.current = false;
+        forceRefreshQueuedRef.current = false;
+        const window = nextForceFull
+          ? { kind: "none" as const }
+          : deltaWindow(syncedFeedRef.current);
+        let incoming: Message[] = [];
+        const replace = nextForceFull || window.kind === "none";
 
-      if (window.kind === "rowId") {
-        let offset = 0;
-        let page: Message[];
-        do {
-          page = await queryMessagesSinceRowId(connection, window.startRowId, {
-            offset,
-            limit: 500,
+        if (window.kind === "rowId") {
+          let offset = 0;
+          let page: Message[];
+          do {
+            page = await queryMessagesSinceRowId(connection, window.startRowId, {
+              offset,
+              limit: 500,
+            });
+            incoming.push(...page);
+            offset += page.length;
+          } while (page.length === 500 && offset < 5000);
+        } else if (window.kind === "timestamp") {
+          incoming = await queryRecentMessages(connection, {
+            after: window.after,
+            limit: 750,
           });
-          incoming.push(...page);
-          offset += page.length;
-        } while (page.length === 500 && offset < 5000);
-      } else if (window.kind === "timestamp") {
-        incoming = await queryRecentMessages(connection, {
-          after: window.after,
-          limit: 750,
-        });
-      } else {
-        incoming = await queryRecentMessages(connection, { limit: 750 });
-      }
+        } else {
+          incoming = await queryRecentMessages(connection, { limit: 750 });
+        }
 
-      acceptFeed(incoming, replace);
-      setStatus(incoming.length > 0 ? `synced · ${incoming.length} new` : "up to date");
+        syncedFeedRef.current = replace
+          ? mergeFeed([], incoming)
+          : mergeFeed(syncedFeedRef.current, incoming);
+        acceptFeed(incoming, replace);
+        setStatus(
+          incoming.length > 0 ? `synced · ${incoming.length} new` : "up to date",
+        );
+        nextForceFull = forceRefreshQueuedRef.current;
+      } while (refreshQueuedRef.current);
     } catch (error) {
       setStatus(
         feedRef.current.length > 0
@@ -210,14 +267,22 @@ export function App({
         const sorted = [...next].sort(
           (a, b) => (a.dateCreated ?? 0) - (b.dateCreated ?? 0),
         );
-        if (selectedGuidRef.current === guid) setMessages(sorted);
+        if (selectedGuidRef.current === guid) {
+          setMessages((current) => mergeThread(sorted, current));
+        }
         updateCache((cache) => {
           const retained = Object.fromEntries(
             Object.entries(cache.threads)
               .filter(([key]) => key !== guid)
               .slice(-29),
           );
-          return { ...cache, threads: { ...retained, [guid]: sorted } };
+          return {
+            ...cache,
+            threads: {
+              ...retained,
+              [guid]: mergeThread(sorted, cache.threads[guid] ?? []),
+            },
+          };
         });
       } catch (error) {
         setStatus(error instanceof Error ? error.message : "thread failed");
@@ -249,6 +314,11 @@ export function App({
   }, [connection, loadConversations, updateCache]);
 
   useEffect(() => {
+    const timer = setInterval(() => void loadConversations(), 10_000);
+    return () => clearInterval(timer);
+  }, [loadConversations]);
+
+  useEffect(() => {
     if (conversations.length === 0) {
       if (selectedGuid) setSelectedGuid(undefined);
       return;
@@ -267,27 +337,25 @@ export function App({
   }, [loadThread, selectedChat?.guid]);
 
   useEffect(() => {
-    const activeGuid = selectedChat?.guid;
     const socket = connectSocket(connection, {
-      onConnectionChange: setConnected,
+      onConnectionChange: (isConnected) => {
+        setConnected(isConnected);
+        if (isConnected) void loadConversations();
+      },
       onNewMessage: (message) => {
-        acceptFeed([message]);
-        if (activeGuid && message.chats?.some((chat) => chat.guid === activeGuid)) {
-          void loadThread(activeGuid);
-        }
+        if (message.chats?.length) acceptFeed([message]);
+        else void loadConversations();
       },
       onUpdatedMessage: (message) => {
-        acceptFeed([message]);
-        if (activeGuid && message.chats?.some((chat) => chat.guid === activeGuid)) {
-          void loadThread(activeGuid);
-        }
+        if (message.chats?.length) acceptFeed([message]);
+        else void loadConversations();
       },
       onChatsChanged: () => void loadConversations(true),
     });
     return () => {
       socket.disconnect();
     };
-  }, [acceptFeed, connection, loadConversations, loadThread, selectedChat?.guid]);
+  }, [acceptFeed, connection, loadConversations]);
 
   const send = useCallback(async () => {
     const body = draft.trim();
@@ -295,18 +363,20 @@ export function App({
     setDraft("");
     setStatus("sending…");
     try {
-      await sendText(connection, {
+      const sent = await sendText(connection, {
         chatGuid: selectedChat.guid,
         message: body,
         method: resolveSendMethod({}, privateApi),
       });
-      await Promise.all([loadThread(selectedChat.guid), loadConversations()]);
+      acceptFeed([{ ...sent, chats: [selectedChat] }]);
+      await loadThread(selectedChat.guid);
+      void loadConversations();
       setStatus("sent");
     } catch (error) {
       setDraft(body);
       setStatus(error instanceof Error ? error.message : "send failed");
     }
-  }, [connection, draft, loadConversations, loadThread, privateApi, selectedChat]);
+  }, [acceptFeed, connection, draft, loadConversations, loadThread, privateApi, selectedChat]);
 
   const rows = process.stdout.rows ?? 30;
   const bodyHeight = Math.max(8, rows - 6);
