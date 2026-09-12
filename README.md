@@ -67,6 +67,8 @@ and message panes. `j`/`k` or the up/down arrows select chats on the left and
 scroll message history on the right.
 Use `Enter` or `i` to compose, `Escape` to return to message navigation, `r` to
 refresh, and `q` to quit.
+Click either pane to focus it, click a conversation to open it, and use the
+mouse wheel over either pane to navigate its list.
 Incoming messages update over Socket.IO. Outgoing iMessages render blue and SMS
 messages green, matching the web client.
 

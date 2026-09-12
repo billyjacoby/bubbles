@@ -62,6 +62,7 @@ Keys:
   tab or h/l     switch chats/messages  j/k or arrows  navigate active pane
   left/right     switch chats/messages  enter/i        compose
   esc            leave composer         r              refresh
+  mouse          click panes/chats      wheel          scroll active list
   q              quit
   ctrl+c         quit
 `;

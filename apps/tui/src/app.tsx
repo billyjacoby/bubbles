@@ -25,6 +25,7 @@ import {
   type Message,
 } from "@bubbles/shared";
 import { emptyCache, saveCache, type TuiCache } from "./cache.js";
+import { isMouseInput, useMouse } from "./use-mouse.js";
 
 const BLUE = "#5b8def";
 const GREEN = "#34c759";
@@ -319,6 +320,7 @@ export function App({
   }, [messagePageSize, messages.length]);
 
   useInput((input, key) => {
+    if (isMouseInput(input)) return;
     if (key.ctrl && input === "c") return exit();
 
     if (composing) {
@@ -388,6 +390,48 @@ export function App({
   );
   const service = selectedChat ? chatService(selectedChat) : null;
   const accent = service === "SMS" ? GREEN : BLUE;
+
+  useMouse(({ action, column, row }) => {
+    const inBody = row >= 2 && row <= bodyHeight + 1;
+    const inSidebar = inBody && column <= sidebarWidth;
+    const inMessages = inBody && column > sidebarWidth;
+
+    if (action === "left") {
+      if (inSidebar) {
+        setFocusedPane("conversations");
+        // Header is row 3; each item then occupies a blank row and a name row.
+        const clicked = chatStart + Math.floor((row - 5) / 2);
+        if (row >= 5 && clicked >= chatStart && clicked < chatStart + visibleChats) {
+          const conversation = conversations[clicked];
+          if (conversation) setSelectedGuid(conversation.chat.guid);
+        }
+      } else if (inMessages && selectedChat) {
+        setFocusedPane("messages");
+      } else if (row > bodyHeight + 1 && selectedChat) {
+        setFocusedPane("composer");
+      }
+      return;
+    }
+
+    if (inSidebar) {
+      setFocusedPane("conversations");
+      const direction = action === "wheel-up" ? -1 : 1;
+      const next = Math.max(
+        0,
+        Math.min(conversations.length - 1, selected + direction),
+      );
+      setSelectedGuid(conversations[next]?.chat.guid);
+    } else if (inMessages) {
+      setFocusedPane("messages");
+      const direction = action === "wheel-up" ? 1 : -1;
+      setMessageOffset((offset) =>
+        Math.max(
+          0,
+          Math.min(messages.length - messagePageSize, offset + direction),
+        ),
+      );
+    }
+  });
 
   return (
     <Box flexDirection="column" height={rows}>
