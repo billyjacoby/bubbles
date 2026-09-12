@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import {
   buildContactIndex,
-  chatPreview,
   chatService,
   chatTitle,
   connectSocket,
@@ -201,7 +200,7 @@ export function App({ connection }: { connection: Connection }) {
   const rows = process.stdout.rows ?? 30;
   const sidebarWidth = Math.max(24, Math.min(42, Math.floor(columns * 0.32)));
   const bodyHeight = Math.max(8, rows - 6);
-  const visibleChats = Math.max(3, Math.floor((bodyHeight - 2) / 2));
+  const visibleChats = Math.max(3, bodyHeight - 3);
   const chatStart = Math.max(
     0,
     Math.min(selected - Math.floor(visibleChats / 2), conversations.length - visibleChats),
@@ -236,17 +235,10 @@ export function App({ connection }: { connection: Connection }) {
             const chat = conversationChat(item);
             const active = index === selected;
             const label = chatTitle(chat, resolveName);
-            const labelColor = active ? accent : colorForName(chat.guid);
             return (
-              <Box key={chat.guid} flexDirection="column">
-                <Box>
-                  <Text color={labelColor}>{active ? "●" : " "}</Text>
-                  <Text bold={active} color={labelColor}>
-                    {` ${clip(label, sidebarWidth - 8)}`}
-                  </Text>
-                </Box>
-                <Text color={MUTED}>    {clip(chatPreview(chat, resolveName), sidebarWidth - 8)}</Text>
-              </Box>
+              <Text key={chat.guid} bold={active} color={active ? accent : undefined}>
+                {active ? "› " : "  "}{clip(label, sidebarWidth - 6)}
+              </Text>
             );
           })}
         </Box>
