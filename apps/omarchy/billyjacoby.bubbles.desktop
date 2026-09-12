@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Bubbles
+Comment=Terminal client for BlueBubbles
+Exec=bubbles-tui
+TryExec=bubbles-tui
+Icon=chat-message-new-symbolic
+Terminal=false
+Categories=Network;InstantMessaging;
+Keywords=BlueBubbles;iMessage;SMS;Messages;Chat;
+StartupNotify=true
+StartupWMClass=bubbles-tui

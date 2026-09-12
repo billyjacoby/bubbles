@@ -5,4 +5,8 @@ set -euo pipefail
 plugin_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 export BUBBLES_NOTIFICATION_COMMAND="$plugin_dir/bin/notify"
 
+if ! "$plugin_dir/bin/install-launcher"; then
+  printf 'Could not register the Bubbles application launcher.\n' >&2
+fi
+
 exec node "$plugin_dir/dist/notifier.mjs"
