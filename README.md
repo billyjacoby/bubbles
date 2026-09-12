@@ -62,8 +62,10 @@ export BLUEBUBBLES_PASSWORD='secret'
 pnpm tui
 ```
 
-Use `j`/`k` or the arrow keys to select a chat, `Enter`, `i`, or `Tab` to
-compose, `Escape` to return to navigation, `r` to refresh, and `q` to quit.
+Use `Tab` to switch between the conversation and message panes. `j`/`k` or the
+arrow keys select chats on the left and scroll message history on the right.
+Use `Enter` or `i` to compose, `Escape` to return to message navigation, `r` to
+refresh, and `q` to quit.
 Incoming messages update over Socket.IO. Outgoing iMessages render blue and SMS
 messages green, matching the web client.
 

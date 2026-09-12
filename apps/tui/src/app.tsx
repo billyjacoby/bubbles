@@ -30,6 +30,7 @@ const BLUE = "#5b8def";
 const GREEN = "#34c759";
 const MUTED = "#727a84";
 const CONTACT_CACHE_TTL = 24 * 60 * 60 * 1000;
+type FocusedPane = "conversations" | "messages" | "composer";
 const PARTICIPANT_COLORS = [
   "#6fd3c8",
   "#f38ba8",
@@ -106,7 +107,8 @@ export function App({
   );
   const [privateApi, setPrivateApi] = useState(false);
   const [draft, setDraft] = useState("");
-  const [composing, setComposing] = useState(false);
+  const [focusedPane, setFocusedPane] = useState<FocusedPane>("conversations");
+  const [messageOffset, setMessageOffset] = useState(0);
   const [busy, setBusy] = useState(startingCache.feed.length === 0);
   const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState(
@@ -257,6 +259,7 @@ export function App({
 
   useEffect(() => {
     if (selectedChat) {
+      setMessageOffset(0);
       setMessages(cacheRef.current.threads[selectedChat.guid] ?? []);
       void loadThread(selectedChat.guid);
     } else setMessages([]);
@@ -304,11 +307,22 @@ export function App({
     }
   }, [connection, draft, loadConversations, loadThread, privateApi, selectedChat]);
 
+  const rows = process.stdout.rows ?? 30;
+  const bodyHeight = Math.max(8, rows - 6);
+  const messagePageSize = Math.max(1, Math.floor((bodyHeight - 3) / 3));
+  const composing = focusedPane === "composer";
+
+  useEffect(() => {
+    setMessageOffset((offset) =>
+      Math.min(offset, Math.max(0, messages.length - messagePageSize)),
+    );
+  }, [messagePageSize, messages.length]);
+
   useInput((input, key) => {
     if (key.ctrl && input === "c") return exit();
 
     if (composing) {
-      if (key.escape) return setComposing(false);
+      if (key.escape) return setFocusedPane("messages");
       if (key.return) return void send();
       if (key.backspace || key.delete) {
         return setDraft((value) => Array.from(value).slice(0, -1).join(""));
@@ -321,31 +335,50 @@ export function App({
 
     if (input === "q") return exit();
     if (input === "r") return void loadConversations(true);
-    if (key.downArrow || input === "j") {
-      const next = Math.min(Math.max(0, conversations.length - 1), selected + 1);
-      return setSelectedGuid(conversations[next]?.chat.guid);
+    if (key.tab && selectedChat) {
+      return setFocusedPane((pane) =>
+        pane === "conversations" ? "messages" : "conversations",
+      );
     }
-    if (key.upArrow || input === "k") {
-      const next = Math.max(0, selected - 1);
-      return setSelectedGuid(conversations[next]?.chat.guid);
+
+    if (focusedPane === "conversations") {
+      if (key.downArrow || input === "j") {
+        const next = Math.min(Math.max(0, conversations.length - 1), selected + 1);
+        return setSelectedGuid(conversations[next]?.chat.guid);
+      }
+      if (key.upArrow || input === "k") {
+        const next = Math.max(0, selected - 1);
+        return setSelectedGuid(conversations[next]?.chat.guid);
+      }
+    } else if (focusedPane === "messages") {
+      if (key.upArrow || input === "k") {
+        return setMessageOffset((offset) =>
+          Math.min(Math.max(0, messages.length - messagePageSize), offset + 1),
+        );
+      }
+      if (key.downArrow || input === "j") {
+        return setMessageOffset((offset) => Math.max(0, offset - 1));
+      }
     }
-    if ((key.return || key.tab || input === "i") && selectedChat) {
-      setComposing(true);
+
+    if ((key.return || input === "i") && selectedChat) {
+      setFocusedPane("composer");
     }
   });
 
   const columns = process.stdout.columns ?? 100;
-  const rows = process.stdout.rows ?? 30;
   const sidebarWidth = Math.max(28, Math.min(46, Math.floor(columns * 0.34)));
-  const bodyHeight = Math.max(8, rows - 6);
   const visibleChats = Math.max(1, Math.floor((bodyHeight - 3) / 2));
   const chatStart = Math.max(
     0,
     Math.min(selected - Math.floor(visibleChats / 2), conversations.length - visibleChats),
   );
   const visibleMessages = useMemo(
-    () => messages.slice(-Math.max(1, Math.floor((bodyHeight - 3) / 3))),
-    [bodyHeight, messages],
+    () => {
+      const end = Math.max(0, messages.length - messageOffset);
+      return messages.slice(Math.max(0, end - messagePageSize), end);
+    },
+    [messageOffset, messagePageSize, messages],
   );
   const service = selectedChat ? chatService(selectedChat) : null;
   const accent = service === "SMS" ? GREEN : BLUE;
@@ -365,7 +398,7 @@ export function App({
           flexShrink={0}
           flexDirection="column"
           borderStyle="single"
-          borderColor={composing ? MUTED : "cyan"}
+          borderColor={focusedPane === "conversations" ? "cyan" : MUTED}
           paddingX={1}
         >
           <Text bold>conversations {busy ? "…" : `(${conversations.length})`}</Text>
@@ -387,14 +420,19 @@ export function App({
           flexGrow={1}
           flexDirection="column"
           borderStyle="single"
-          borderColor={composing ? accent : MUTED}
+          borderColor={focusedPane === "messages" ? accent : MUTED}
           paddingX={1}
         >
           <Box justifyContent="space-between">
             <Text bold color={accent}>{selectedChat ? chatTitle(selectedChat, resolveName) : "No conversation"}</Text>
             <Text color={accent}>{service ?? ""}</Text>
           </Box>
-          <Box flexDirection="column" flexGrow={1} justifyContent="flex-end">
+          <Box
+            flexDirection="column"
+            flexGrow={1}
+            justifyContent="flex-end"
+            rowGap={1}
+          >
             {visibleMessages.map((message) => {
               const outgoing = message.isFromMe;
               const messageAccent = messageService(message) === "SMS" ? GREEN : BLUE;
@@ -410,7 +448,7 @@ export function App({
                 <Box
                   key={message.guid}
                   justifyContent={outgoing ? "flex-end" : "flex-start"}
-                  marginTop={1}
+                  flexShrink={0}
                 >
                   <Box width="85%" flexDirection="column">
                     <Box justifyContent={outgoing ? "flex-end" : "flex-start"}>
@@ -452,7 +490,7 @@ export function App({
         <Text>{draft}</Text>
         {composing && <Text inverse> </Text>}
       </Box>
-      <Text color={MUTED}> ↑↓/jk select · enter compose · r refresh · q quit</Text>
+      <Text color={MUTED}> tab switch pane · ↑↓/jk navigate · enter/i compose · r refresh · q quit</Text>
     </Box>
   );
 }
