@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-plugin_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+script_path=$(readlink -f -- "${BASH_SOURCE[0]}")
+plugin_dir=$(cd -- "$(dirname -- "$script_path")/.." && pwd)
 window_address=$(hyprctl clients -j | jq -r '
   map(select(
     .class == "bubbles-tui"
